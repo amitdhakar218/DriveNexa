@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Gamepad2, MapPin, UserCheck, AlertTriangle } from 'lucide-react';
+import { Home, Gamepad2, MapPin, UserCheck } from 'lucide-react';
 
 export type TabKey = 'home' | 'remote' | 'map' | 'profile' | 'admin' | 'emergency';
 
@@ -12,7 +12,6 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   onTabChange,
-  unacknowledgedAlerts,
 }) => {
   const tabs = [
     {
@@ -38,7 +37,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 border-t border-slate-800/80 backdrop-blur-xl pb-safe">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 shadow-lg backdrop-blur-md pb-safe">
       <div className="max-w-md mx-auto grid grid-cols-4 h-16 px-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -47,15 +46,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <button
               key={tab.key}
               onClick={() => onTabChange(tab.key)}
-              className={`flex flex-col items-center justify-center relative transition-all duration-200 select-none cursor-pointer ${
+              className={`flex flex-col items-center justify-center relative transition-all duration-150 select-none cursor-pointer ${
                 isActive
-                  ? 'text-cyan-400 font-bold'
-                  : 'text-slate-400 hover:text-slate-200 font-medium'
+                  ? 'text-blue-600 font-bold'
+                  : 'text-slate-500 hover:text-slate-800 font-medium'
               }`}
             >
-              {/* Active glow indicator */}
+              {/* Active top line indicator */}
               {isActive && (
-                <div className="absolute top-0 w-12 h-1 bg-cyan-400 rounded-full shadow-[0_0_8px_#22d3ee]" />
+                <div className="absolute top-0 w-10 h-0.5 bg-blue-600 rounded-full" />
               )}
               <div className="relative">
                 <Icon
@@ -64,7 +63,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   }`}
                 />
               </div>
-              <span className="text-[10px] tracking-wider mt-1 uppercase">
+              <span className="text-[10px] tracking-wider mt-1 uppercase font-semibold">
                 {tab.label}
               </span>
             </button>

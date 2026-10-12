@@ -43,7 +43,6 @@ export const VehicleMap: React.FC = () => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      // Default center fallback (if no live GPS yet, standard view)
       const initialLat = hasLiveFix ? liveGps.latitude! : 14.5995;
       const initialLng = hasLiveFix ? liveGps.longitude! : 120.9842;
 
@@ -53,11 +52,11 @@ export const VehicleMap: React.FC = () => {
         zoomControl: false,
       });
 
-      // CartoDB Dark Matter tiles for modern automotive/robotics styling
+      // OpenStreetMap standard clean light tiles for automotive/robotics navigation
       L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         {
-          attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+          attribution: '&copy; OpenStreetMap contributors',
           maxZoom: 19,
         }
       ).addTo(map);
@@ -67,7 +66,7 @@ export const VehicleMap: React.FC = () => {
 
     const map = mapInstanceRef.current;
 
-    // Update vehicle marker if real fix is present
+    // Update vehicle marker if real satellite fix exists
     if (hasLiveFix) {
       const lat = liveGps.latitude!;
       const lng = liveGps.longitude!;
@@ -79,8 +78,8 @@ export const VehicleMap: React.FC = () => {
         className: 'vehicle-marker-icon',
         html: `
           <div style="transform: rotate(${heading}deg); transition: transform 0.3s ease-out;" class="flex items-center justify-center w-10 h-10 -ml-5 -mt-5">
-            <div class="relative w-8 h-8 rounded-full bg-cyan-500 border-2 border-white shadow-[0_0_15px_#06b6d4] flex items-center justify-center">
-              <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[9px] border-b-slate-950 -mt-0.5"></div>
+            <div class="relative w-8 h-8 rounded-full bg-blue-600 border-2 border-white shadow-md flex items-center justify-center">
+              <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[9px] border-b-white -mt-0.5"></div>
             </div>
           </div>
         `,
@@ -90,8 +89,8 @@ export const VehicleMap: React.FC = () => {
       if (!vehicleMarkerRef.current) {
         vehicleMarkerRef.current = L.marker(pos, { icon: vehicleIcon }).addTo(map);
         vehicleMarkerRef.current.bindPopup(`
-          <div class="p-1 text-slate-900 font-sans">
-            <strong>${device?.name || 'NexaRover-01'}</strong><br/>
+          <div class="p-1 text-slate-900 font-sans text-xs">
+            <strong class="text-blue-600">${device?.name || 'NexaRover-01'}</strong><br/>
             Speed: ${liveGps.speed ?? 0} km/h<br/>
             Accuracy: ±${liveGps.accuracy ?? 2.5}m
           </div>
@@ -108,10 +107,6 @@ export const VehicleMap: React.FC = () => {
         vehicleMarkerRef.current = null;
       }
     }
-
-    return () => {
-      // Cleanup on unmount handled on component teardown
-    };
   }, [hasLiveFix, liveGps, device?.name]);
 
   // Load historical GPS points if requested
@@ -135,9 +130,9 @@ export const VehicleMap: React.FC = () => {
           routePolylineRef.current.remove();
         }
         routePolylineRef.current = L.polyline(latLngs, {
-          color: '#06b6d4',
+          color: '#2563eb',
           weight: 4,
-          opacity: 0.8,
+          opacity: 0.85,
           dashArray: '6, 6',
         }).addTo(mapInstanceRef.current);
 
@@ -163,75 +158,75 @@ export const VehicleMap: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top GPS Telemetry Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-900 border border-slate-800">
-        <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-          <span className="text-[10px] text-slate-400 uppercase font-medium block">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+          <span className="text-[10px] text-slate-500 uppercase font-bold block">
             Latitude / Longitude
           </span>
-          <div className="mt-1 text-xs font-mono font-bold text-white truncate">
+          <div className="mt-1 text-xs font-mono font-bold text-slate-900 truncate">
             {hasLiveFix ? (
               `${liveGps.latitude!.toFixed(6)}, ${liveGps.longitude!.toFixed(6)}`
             ) : (
-              <span className="text-amber-400">Unavailable</span>
+              <span className="text-amber-700">Unavailable</span>
             )}
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-          <span className="text-[10px] text-slate-400 uppercase font-medium block">
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+          <span className="text-[10px] text-slate-500 uppercase font-bold block">
             GPS Signal & Fix
           </span>
           <div className="mt-1 flex items-center gap-1.5 text-xs font-bold">
-            <Radio className="w-3.5 h-3.5 text-cyan-400" />
-            <span className={hasLiveFix ? 'text-emerald-400' : 'text-amber-400'}>
+            <Radio className="w-3.5 h-3.5 text-blue-600" />
+            <span className={hasLiveFix ? 'text-emerald-700' : 'text-amber-700'}>
               {hasLiveFix ? '3D Satellite Fix' : 'GPS Not Connected'}
             </span>
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-          <span className="text-[10px] text-slate-400 uppercase font-medium block">
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+          <span className="text-[10px] text-slate-500 uppercase font-bold block">
             Heading & Speed
           </span>
-          <div className="mt-1 text-xs font-mono font-bold text-slate-200">
+          <div className="mt-1 text-xs font-mono font-bold text-slate-800">
             {hasLiveFix ? (
               `${liveGps.heading ?? 0}° • ${liveGps.speed ?? 0} km/h`
             ) : (
-              <span className="text-slate-500">No telemetry</span>
+              <span className="text-slate-400">No telemetry</span>
             )}
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-          <span className="text-[10px] text-slate-400 uppercase font-medium block">
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+          <span className="text-[10px] text-slate-500 uppercase font-bold block">
             Horizontal Accuracy
           </span>
-          <div className="mt-1 text-xs font-mono font-bold text-slate-200">
+          <div className="mt-1 text-xs font-mono font-bold text-slate-800">
             {hasLiveFix && liveGps.accuracy ? (
               `±${liveGps.accuracy.toFixed(1)} meters`
             ) : (
-              <span className="text-slate-500">Unavailable</span>
+              <span className="text-slate-400">Unavailable</span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Map Container & Floating Controls */}
-      <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-950">
+      {/* Map Canvas & Floating Controls */}
+      <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-200/90 shadow-sm bg-slate-100">
         <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-        {/* Floating Map Controls */}
+        {/* Floating Controls */}
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
           <button
             onClick={() => mapInstanceRef.current?.zoomIn()}
-            className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow-lg cursor-pointer"
+            className="p-2.5 rounded-xl bg-white/95 hover:bg-white text-slate-800 border border-slate-200 shadow-sm cursor-pointer"
             title="Zoom In"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
             onClick={() => mapInstanceRef.current?.zoomOut()}
-            className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow-lg cursor-pointer"
+            className="p-2.5 rounded-xl bg-white/95 hover:bg-white text-slate-800 border border-slate-200 shadow-sm cursor-pointer"
             title="Zoom Out"
           >
             <ZoomOut className="w-4 h-4" />
@@ -239,17 +234,17 @@ export const VehicleMap: React.FC = () => {
           <button
             onClick={handleCenter}
             disabled={!hasLiveFix}
-            className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-cyan-400 border border-slate-700 shadow-lg disabled:opacity-40 cursor-pointer"
+            className="p-2.5 rounded-xl bg-white/95 hover:bg-white text-blue-600 border border-slate-200 shadow-sm disabled:opacity-40 cursor-pointer"
             title="Center Rover"
           >
             <Crosshair className="w-4 h-4" />
           </button>
           <button
             onClick={handleToggleHistory}
-            className={`p-2.5 rounded-xl border shadow-lg cursor-pointer transition ${
+            className={`p-2.5 rounded-xl border shadow-sm cursor-pointer transition ${
               showHistory
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-bold'
-                : 'bg-slate-900/90 text-white hover:bg-slate-800 border-slate-700'
+                ? 'bg-blue-600 text-white border-blue-700 font-bold'
+                : 'bg-white/95 text-slate-800 hover:bg-white border-slate-200'
             }`}
             title="Toggle Real Route History"
           >
@@ -259,36 +254,36 @@ export const VehicleMap: React.FC = () => {
 
         {/* Overlay Notice if GPS is Not Connected */}
         {!hasLiveFix && (
-          <div className="absolute bottom-4 left-4 right-4 z-20 p-4 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md text-xs shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="absolute bottom-4 left-4 right-4 z-20 p-4 rounded-xl bg-white/95 border border-amber-300 backdrop-blur-md text-xs shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-950/80 border border-amber-800 text-amber-400 shrink-0">
+              <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
                 <WifiOff className="w-4 h-4" />
               </div>
               <div>
-                <strong className="text-white block font-bold">
+                <strong className="text-slate-900 block font-bold">
                   GPS Hardware Not Connected / Awaiting Satellite Fix
                 </strong>
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  The u-blox NEO-6M/NEO-8M GPS module has not transmitted valid NMEA coordinates to Firebase yet.
-                  Live positioning will automatically track and draw travel history as soon as real satellite lock is acquired.
+                <p className="text-slate-600 text-[11px] mt-0.5">
+                  The u-blox NEO-6M/NEO-8M GPS module has not transmitted valid coordinates to Firebase yet.
+                  Live positioning and route history will automatically plot once real physical lock is established.
                 </p>
               </div>
             </div>
 
-            <div className="text-[10px] font-mono text-cyan-400 bg-cyan-950/70 border border-cyan-800/50 px-2.5 py-1.5 rounded-lg shrink-0">
+            <div className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg shrink-0">
               RX2: GPIO16 | TX2: GPIO17
             </div>
           </div>
         )}
       </div>
 
-      {/* GPS Hardware & Architecture Guide */}
-      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300">
-        <div className="flex items-center gap-2 font-bold text-cyan-400 mb-2">
-          <Cpu className="w-4 h-4" />
-          <span>Real-time GPS Tracking Architecture (Section 11 & 12)</span>
+      {/* GPS Hardware Architecture Details */}
+      <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm text-xs text-slate-700">
+        <div className="flex items-center gap-2 font-bold text-blue-900 mb-2">
+          <Cpu className="w-4 h-4 text-blue-600" />
+          <span>Real-time GPS Tracking Architecture (Section 14 & 17)</span>
         </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
+        <p className="text-[11px] text-slate-500 leading-relaxed">
           The tracking pipeline operates as: <strong>NEO-6M GPS Module → ESP32 TinyGPS++ parser → Firebase RTDB/Firestore → Leaflet Map Engine</strong>.
           No fake coordinates or simulated vehicle positions are generated. Only real NMEA sentence readings from physical satellites are mapped.
         </p>

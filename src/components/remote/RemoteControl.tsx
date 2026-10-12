@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDevice } from '../../context/DeviceContext';
 import { useAuth } from '../../context/AuthContext';
 import { RoverCommand, CommandAction } from '../../types';
@@ -34,21 +34,28 @@ export const RemoteControl: React.FC = () => {
   const [commandStatusMsg, setCommandStatusMsg] = useState<string>('Standby - Safety Watchdog Active');
   const [isSending, setIsSending] = useState(false);
 
-  const heartbeatIntervalRef = useRef<any>(null);
-
   const isOnline = device?.status === 'ONLINE';
   const isEmergencyLocked = !!device?.safetyLock;
+  const isMovementDisabled = !isOnline || isEmergencyLocked || !isArmingUnlocked;
 
   const handleCommand = useCallback(
     async (cmd: CommandAction) => {
-      if (!isArmingUnlocked && cmd !== 'STOP' && cmd !== 'EMERGENCY_STOP') {
-        setShowSensitiveModal(true);
-        return;
-      }
+      // Emergency Stop and normal Stop are always allowed if needed
+      if (cmd !== 'STOP' && cmd !== 'EMERGENCY_STOP') {
+        if (!isArmingUnlocked) {
+          setShowSensitiveModal(true);
+          return;
+        }
 
-      if (isEmergencyLocked && cmd !== 'EMERGENCY_STOP') {
-        setCommandStatusMsg('ROVER LOCKED: Emergency Stop is engaged. Reset lock below to resume.');
-        return;
+        if (!isOnline) {
+          setCommandStatusMsg('DISPATCH BLOCKED: Rover is offline. Movement controls disabled for safety.');
+          return;
+        }
+
+        if (isEmergencyLocked) {
+          setCommandStatusMsg('DISPATCH BLOCKED: Rover is emergency stopped. Reset safety lock first.');
+          return;
+        }
       }
 
       setActiveButton(cmd);
@@ -62,17 +69,17 @@ export const RemoteControl: React.FC = () => {
         setCommandStatusMsg(`Command failed: ${err.message || 'Network error'}`);
       } finally {
         setIsSending(false);
-        // Clear active button highlight shortly after release
-        setTimeout(() => setActiveButton(null), 300);
+        setTimeout(() => setActiveButton(null), 250);
       }
     },
-    [isArmingUnlocked, isEmergencyLocked, sendCommand, speedPercentage]
+    [isArmingUnlocked, isOnline, isEmergencyLocked, sendCommand, speedPercentage]
   );
 
   // Keyboard navigation support (WASD and Arrow keys)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isArmingUnlocked || isEmergencyLocked) return;
+      if (isMovementDisabled && !['Space', 'Escape'].includes(e.code)) return;
+
       if (['ArrowUp', 'KeyW'].includes(e.code)) {
         e.preventDefault();
         handleCommand('FORWARD');
@@ -93,22 +100,22 @@ export const RemoteControl: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isArmingUnlocked, isEmergencyLocked, handleCommand]);
+  }, [isMovementDisabled, handleCommand]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Top Remote Control Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900 border border-slate-800">
+      {/* Top Header Card */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-black text-white uppercase tracking-wider">
+            <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
               Rover Remote Control
             </h1>
-            <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+            <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
               ESP32 4WD H-Bridge
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Realtime motor commands dispatched via low-latency Firebase RTDB with cryptographic timestamps.
           </p>
         </div>
@@ -118,51 +125,51 @@ export const RemoteControl: React.FC = () => {
           {!isArmingUnlocked ? (
             <button
               onClick={() => setShowSensitiveModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 font-bold text-xs flex items-center gap-2 transition cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-xs"
             >
-              <Lock className="w-4 h-4 text-amber-400" />
-              <span>Unlock Driving Mode (Biometric / PIN)</span>
+              <Lock className="w-4 h-4 text-amber-600" />
+              <span>Unlock Driving Mode (Passkey / PIN)</span>
             </button>
           ) : (
             <button
               onClick={() => setIsArmingUnlocked(false)}
-              className="px-4 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-bold text-xs flex items-center gap-2 transition cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-xs"
             >
-              <Unlock className="w-4 h-4 text-emerald-400" />
+              <Unlock className="w-4 h-4 text-emerald-600" />
               <span>Drive Mode Armed (Tap to Lock)</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Connection Warning Banner if Offline */}
+      {/* OFFLINE ENFORCEMENT: Controls strictly disabled notice */}
       {!isOnline && (
-        <div className="p-4 rounded-xl bg-amber-950/70 border border-amber-800/80 text-amber-200 text-xs flex items-start gap-3">
-          <WifiOff className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-xs">
+          <WifiOff className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <strong className="font-bold text-amber-300 block mb-0.5">
-              Hardware Rover Currently Offline
+            <strong className="font-bold text-amber-900 block mb-0.5">
+              MOVEMENT CONTROLS DISABLED: Rover is Offline
             </strong>
-            The physical ESP32 has not broadcast a heartbeat within 15 seconds. Dispatched commands will be queued in Firebase with 1500ms safety expiration to protect against stale movement upon reconnection.
+            The physical ESP32 has not broadcast a valid heartbeat. In accordance with Section 12 & 13 remote safety requirements, movement commands are disabled until the physical vehicle establishes an active connection.
           </div>
         </div>
       )}
 
       {/* Emergency Lock Banner */}
       {isEmergencyLocked && (
-        <div className="p-4 rounded-xl bg-red-950/90 border border-red-700 text-red-200 text-xs flex items-center justify-between gap-3 shadow-lg shadow-red-950/50">
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2.5">
-            <ShieldAlert className="w-5 h-5 text-red-400 shrink-0" />
+            <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
             <div>
-              <strong className="font-bold text-white block">
+              <strong className="font-bold text-rose-900 block">
                 SAFETY EMERGENCY LOCKOUT ENGAGED
               </strong>
-              <span>Motor power isolated. Hardware and remote commands are prohibited.</span>
+              <span>Motor power isolated. Remote driving is disabled until cleared.</span>
             </div>
           </div>
           <button
             onClick={resetEmergency}
-            className="px-3.5 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition"
+            className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition cursor-pointer shadow-xs"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset Safety Lock</span>
@@ -172,16 +179,16 @@ export const RemoteControl: React.FC = () => {
 
       {/* Main Controller Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Speed Control & Safety Watchdog Info */}
+        {/* Left Column: Throttle Slider & Safety Specs */}
         <div className="lg:col-span-5 space-y-4">
           {/* Speed Preset & Slider */}
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Gauge className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Gauge className="w-4 h-4 text-blue-600" />
                 <span>Motor Throttle / PWM Output</span>
               </span>
-              <span className="text-sm font-black font-mono text-cyan-400">
+              <span className="text-sm font-black font-mono text-blue-600">
                 {speedPercentage}%
               </span>
             </div>
@@ -193,7 +200,7 @@ export const RemoteControl: React.FC = () => {
               step="5"
               value={speedPercentage}
               onChange={(e) => setSpeedPercentage(Number(e.target.value))}
-              className="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+              className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
 
             <div className="grid grid-cols-4 gap-1.5 pt-1">
@@ -206,10 +213,10 @@ export const RemoteControl: React.FC = () => {
                 <button
                   key={p.val}
                   onClick={() => setSpeedPercentage(p.val)}
-                  className={`py-1.5 rounded-lg text-xs font-semibold transition ${
+                  className={`py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                     speedPercentage === p.val
-                      ? 'bg-cyan-500 text-slate-950 font-bold'
-                      : 'bg-slate-950 text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                   }`}
                 >
                   {p.label}
@@ -218,60 +225,60 @@ export const RemoteControl: React.FC = () => {
             </div>
           </div>
 
-          {/* Safety Watchdog Architecture Info Card */}
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-2.5">
-            <div className="flex items-center gap-2 font-bold text-cyan-400">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Section 10 Safety Architecture</span>
+          {/* Safety Watchdog Info Card */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm text-xs text-slate-700 space-y-2.5">
+            <div className="flex items-center gap-2 font-bold text-blue-900">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Command Safety & Watchdog Architecture</span>
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Every dispatched command carries a strict <code className="text-cyan-300">expiresAt</code> epoch (+1500ms).
-              The onboard ESP32 firmware includes a local hardware watchdog that stops motors immediately if communication pauses, preventing uncommanded movement.
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Every command carries an expiration epoch of 1500 ms.
+              If communication disconnects, the onboard ESP32 firmware stops motors locally to prevent uncommanded runaway.
             </p>
-            <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1">
-              <div>Timeout Window: 1500 ms</div>
-              <div>ESP32 Local Stop: Auto Fail-safe</div>
-              <div>Authorized User: {userProfile?.displayName || user?.email}</div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-mono text-slate-600 space-y-1">
+              <div>Command Expiry: 1500 ms (Enforced)</div>
+              <div>ESP32 Local Watchdog: Autonomous Fail-Safe</div>
+              <div>Operator: {userProfile?.displayName || user?.email}</div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: High-Touch Tactile Joystick / D-Pad & Emergency Stop */}
-        <div className="lg:col-span-7 flex flex-col items-center justify-center p-6 rounded-2xl bg-slate-900 border border-slate-800 relative">
-          {/* Prominent Emergency Stop (Top-right of controller) */}
+        {/* Right Column: D-Pad & Emergency Killswitch */}
+        <div className="lg:col-span-7 flex flex-col items-center justify-center p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm relative">
+          {/* Top Bar with Prominent Emergency Stop */}
           <div className="w-full flex justify-between items-center mb-6">
-            <span className="text-xs font-semibold text-slate-400">
-              Touch D-Pad or use <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">W</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] ml-1">A</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] ml-1">S</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] ml-1">D</kbd>
+            <span className="text-xs font-semibold text-slate-500">
+              Tactile D-Pad or <kbd className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] border border-slate-200">W</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] ml-1 border border-slate-200">A</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] ml-1 border border-slate-200">S</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] ml-1 border border-slate-200">D</kbd>
             </span>
 
             <button
               onClick={emergencyStop}
-              className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-red-600/30 cursor-pointer transition transform active:scale-95"
+              className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-rose-600/20 cursor-pointer transition transform active:scale-95"
             >
               <Octagon className="w-4 h-4" />
               <span>Emergency Stop</span>
             </button>
           </div>
 
-          {/* D-Pad Buttons Cluster */}
+          {/* D-Pad Cluster */}
           <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-4">
             {/* Ambient center ring */}
-            <div className="absolute inset-4 rounded-full border border-slate-800 bg-slate-950/60 pointer-events-none" />
+            <div className="absolute inset-4 rounded-full border border-slate-200 bg-slate-50 pointer-events-none" />
 
             {/* FORWARD */}
             <button
               type="button"
-              disabled={isEmergencyLocked}
+              disabled={isMovementDisabled}
               onMouseDown={() => handleCommand('FORWARD')}
               onTouchStart={(e) => { e.preventDefault(); handleCommand('FORWARD'); }}
-              className={`absolute top-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none cursor-pointer shadow-lg active:scale-95 ${
+              className={`absolute top-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none shadow-sm cursor-pointer ${
                 activeButton === 'FORWARD'
-                  ? 'bg-cyan-500 border-cyan-300 text-slate-950 scale-95 shadow-cyan-500/50'
-                  : 'bg-slate-800/90 border-slate-700 text-white hover:border-cyan-500 hover:text-cyan-400'
-              } disabled:opacity-30`}
+                  ? 'bg-blue-600 border-blue-700 text-white scale-95 shadow-md'
+                  : 'bg-white border-slate-300 text-slate-800 hover:border-blue-500 hover:text-blue-600'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               <ArrowUp className="w-7 h-7 stroke-[2.5]" />
               <span className="text-[10px] font-black tracking-wider uppercase">FWD</span>
@@ -280,14 +287,14 @@ export const RemoteControl: React.FC = () => {
             {/* BACKWARD */}
             <button
               type="button"
-              disabled={isEmergencyLocked}
+              disabled={isMovementDisabled}
               onMouseDown={() => handleCommand('BACKWARD')}
               onTouchStart={(e) => { e.preventDefault(); handleCommand('BACKWARD'); }}
-              className={`absolute bottom-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none cursor-pointer shadow-lg active:scale-95 ${
+              className={`absolute bottom-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none shadow-sm cursor-pointer ${
                 activeButton === 'BACKWARD'
-                  ? 'bg-cyan-500 border-cyan-300 text-slate-950 scale-95 shadow-cyan-500/50'
-                  : 'bg-slate-800/90 border-slate-700 text-white hover:border-cyan-500 hover:text-cyan-400'
-              } disabled:opacity-30`}
+                  ? 'bg-blue-600 border-blue-700 text-white scale-95 shadow-md'
+                  : 'bg-white border-slate-300 text-slate-800 hover:border-blue-500 hover:text-blue-600'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               <ArrowDown className="w-7 h-7 stroke-[2.5]" />
               <span className="text-[10px] font-black tracking-wider uppercase">REV</span>
@@ -296,14 +303,14 @@ export const RemoteControl: React.FC = () => {
             {/* LEFT */}
             <button
               type="button"
-              disabled={isEmergencyLocked}
+              disabled={isMovementDisabled}
               onMouseDown={() => handleCommand('LEFT')}
               onTouchStart={(e) => { e.preventDefault(); handleCommand('LEFT'); }}
-              className={`absolute left-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none cursor-pointer shadow-lg active:scale-95 ${
+              className={`absolute left-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none shadow-sm cursor-pointer ${
                 activeButton === 'LEFT'
-                  ? 'bg-cyan-500 border-cyan-300 text-slate-950 scale-95 shadow-cyan-500/50'
-                  : 'bg-slate-800/90 border-slate-700 text-white hover:border-cyan-500 hover:text-cyan-400'
-              } disabled:opacity-30`}
+                  ? 'bg-blue-600 border-blue-700 text-white scale-95 shadow-md'
+                  : 'bg-white border-slate-300 text-slate-800 hover:border-blue-500 hover:text-blue-600'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               <ArrowLeft className="w-7 h-7 stroke-[2.5]" />
               <span className="text-[10px] font-black tracking-wider uppercase">LEFT</span>
@@ -312,28 +319,28 @@ export const RemoteControl: React.FC = () => {
             {/* RIGHT */}
             <button
               type="button"
-              disabled={isEmergencyLocked}
+              disabled={isMovementDisabled}
               onMouseDown={() => handleCommand('RIGHT')}
               onTouchStart={(e) => { e.preventDefault(); handleCommand('RIGHT'); }}
-              className={`absolute right-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none cursor-pointer shadow-lg active:scale-95 ${
+              className={`absolute right-0 w-20 h-20 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all select-none shadow-sm cursor-pointer ${
                 activeButton === 'RIGHT'
-                  ? 'bg-cyan-500 border-cyan-300 text-slate-950 scale-95 shadow-cyan-500/50'
-                  : 'bg-slate-800/90 border-slate-700 text-white hover:border-cyan-500 hover:text-cyan-400'
-              } disabled:opacity-30`}
+                  ? 'bg-blue-600 border-blue-700 text-white scale-95 shadow-md'
+                  : 'bg-white border-slate-300 text-slate-800 hover:border-blue-500 hover:text-blue-600'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               <ArrowRight className="w-7 h-7 stroke-[2.5]" />
               <span className="text-[10px] font-black tracking-wider uppercase">RIGHT</span>
             </button>
 
-            {/* CENTER PROMINENT STOP BUTTON */}
+            {/* CENTER LARGE PROMINENT STOP BUTTON */}
             <button
               type="button"
               onMouseDown={() => handleCommand('STOP')}
               onTouchStart={(e) => { e.preventDefault(); handleCommand('STOP'); }}
-              className={`w-24 h-24 rounded-full border-2 flex flex-col items-center justify-center gap-0.5 select-none cursor-pointer transition-transform shadow-xl active:scale-90 z-10 ${
+              className={`w-24 h-24 rounded-full border-2 flex flex-col items-center justify-center gap-0.5 select-none cursor-pointer transition-transform shadow-lg active:scale-90 z-10 ${
                 activeButton === 'STOP'
-                  ? 'bg-red-500 border-white text-white shadow-red-500/80'
-                  : 'bg-red-600 border-red-400 text-white hover:bg-red-500'
+                  ? 'bg-rose-700 border-rose-800 text-white shadow-rose-600/50'
+                  : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-700'
               }`}
             >
               <Octagon className="w-7 h-7 stroke-[2.5]" />
@@ -342,8 +349,8 @@ export const RemoteControl: React.FC = () => {
           </div>
 
           {/* Real Command Status Line */}
-          <div className="w-full mt-4 p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
-            <span className="text-xs font-mono text-cyan-300 block truncate">
+          <div className="w-full mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+            <span className="text-xs font-mono font-semibold text-slate-700 block truncate">
               {commandStatusMsg}
             </span>
           </div>
@@ -357,7 +364,7 @@ export const RemoteControl: React.FC = () => {
         onVerified={() => {
           setIsArmingUnlocked(true);
           setShowSensitiveModal(false);
-          setCommandStatusMsg('Driving mode unlocked via biometric/passkey verification.');
+          setCommandStatusMsg('Driving mode armed via platform biometric/passkey verification.');
         }}
         actionTitle="Authorize Rover Teleoperation"
         actionDescription="Physical robot control requires identity clearance. Verify with device passkey or fingerprint before driving."

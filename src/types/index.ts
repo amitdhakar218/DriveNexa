@@ -135,3 +135,20 @@ export interface SystemLog {
   message: string;
   metadata?: Record<string, any>;
 }
+
+export type FeedbackCategory = 'BUG' | 'SUGGESTION' | 'PROBLEM' | 'FEATURE_REQUEST';
+
+export interface FeedbackSubmission {
+  id: string;
+  userId: string;
+  userEmail: string | null;
+  category: FeedbackCategory;
+  title: string;
+  description: string;
+  deviceId: string;
+  appVersion: string;
+  timestamp: number;
+  errorCode?: string | null;
+  status: 'NEW' | 'REVIEWED' | 'RESOLVED';
+}
+

@@ -27,20 +27,20 @@ export const EmergencyCenter: React.FC = () => {
     switch (severity) {
       case 'EMERGENCY':
         return (
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-950 text-red-400 border border-red-600 animate-pulse">
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300">
             EMERGENCY
           </span>
         );
       case 'CRITICAL':
         return (
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-950 text-amber-400 border border-amber-600">
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-800 border border-amber-300">
             CRITICAL
           </span>
         );
       case 'WARNING':
       default:
         return (
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-950 text-blue-400 border border-blue-600">
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800 border border-blue-300">
             WARNING
           </span>
         );
@@ -57,23 +57,23 @@ export const EmergencyCenter: React.FC = () => {
       {/* Top Banner / Emergency Killswitch */}
       <div className={`p-6 rounded-2xl border transition-all ${
         isEmergencyLocked
-          ? 'bg-red-950/80 border-red-600 shadow-2xl shadow-red-950/50'
-          : 'bg-slate-900 border-slate-800'
+          ? 'bg-rose-50 border-rose-300 shadow-md'
+          : 'bg-white border-slate-200/90 shadow-sm'
       }`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-2xl border ${
               isEmergencyLocked
-                ? 'bg-red-600 text-white border-red-400 animate-bounce'
-                : 'bg-slate-800 text-red-400 border-slate-700'
+                ? 'bg-rose-600 text-white border-rose-700 animate-bounce'
+                : 'bg-rose-50 text-rose-600 border-rose-200'
             }`}>
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-white uppercase tracking-wider">
+              <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
                 Emergency Response Center
               </h1>
-              <p className="text-xs text-slate-300 mt-1">
+              <p className="text-xs text-slate-600 mt-1">
                 {isEmergencyLocked
                   ? 'ROVER IS CURRENTLY EMERGENCY STOPPED. Physical motors isolated.'
                   : 'System armed and monitoring hardware crash switches, temperatures & battery status.'}
@@ -85,15 +85,15 @@ export const EmergencyCenter: React.FC = () => {
             {isEmergencyLocked ? (
               <button
                 onClick={resetEmergency}
-                className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase flex items-center gap-2 transition cursor-pointer border border-slate-600"
+                className="px-5 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs uppercase flex items-center gap-2 transition cursor-pointer border border-slate-300 shadow-xs"
               >
-                <RotateCcw className="w-4 h-4 text-cyan-400" />
+                <RotateCcw className="w-4 h-4 text-blue-600" />
                 <span>Reset Emergency Lock</span>
               </button>
             ) : (
               <button
                 onClick={emergencyStop}
-                className="px-6 py-3.5 rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shadow-xl shadow-red-600/40"
+                className="px-6 py-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shadow-md shadow-rose-600/20"
               >
                 <Octagon className="w-5 h-5" />
                 <span>Trigger Emergency Stop</span>
@@ -105,15 +105,15 @@ export const EmergencyCenter: React.FC = () => {
 
       {/* Filter and Real Alert Feed */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-xs text-xs">
           {['ALL', 'EMERGENCY', 'CRITICAL', 'WARNING'].map((f) => (
             <button
               key={f}
               onClick={() => setFilterSeverity(f)}
-              className={`px-3 py-1.5 rounded-lg font-medium transition text-xs ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition text-xs cursor-pointer ${
                 filterSeverity === f
-                  ? 'bg-cyan-500 text-slate-950 font-bold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               {f}
@@ -121,54 +121,54 @@ export const EmergencyCenter: React.FC = () => {
           ))}
         </div>
 
-        <span className="text-xs text-slate-400">
-          Real Stored Alerts: <strong className="text-white">{filteredAlerts.length}</strong>
+        <span className="text-xs text-slate-500 font-medium">
+          Real Stored Alerts: <strong className="text-slate-900">{filteredAlerts.length}</strong>
         </span>
       </div>
 
       {/* Alerts List */}
       <div className="space-y-3">
         {filteredAlerts.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-slate-900/60 border border-dashed border-slate-800">
-            <CheckCircle className="w-10 h-10 text-emerald-400/80 mx-auto mb-3" />
-            <h3 className="text-sm font-bold text-white">No Active Alerts In Range</h3>
+          <div className="p-12 text-center rounded-2xl bg-white border border-dashed border-slate-200 shadow-xs">
+            <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
+            <h3 className="text-sm font-bold text-slate-900">No Active Alerts In Range</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              No crash triggers, thermal thresholds, or connection faults have been recorded.
+              No crash triggers, thermal runaway warnings, or hardware connection faults have been recorded.
             </p>
           </div>
         ) : (
           filteredAlerts.map((alert) => (
             <div
               key={alert.id}
-              className={`p-4 rounded-xl border transition flex items-start justify-between gap-4 ${
+              className={`p-4 rounded-xl border transition flex items-start justify-between gap-4 shadow-xs ${
                 alert.acknowledged
-                  ? 'bg-slate-950/70 border-slate-800/80 opacity-70'
+                  ? 'bg-slate-50 border-slate-200 opacity-60'
                   : alert.severity === 'EMERGENCY'
-                  ? 'bg-red-950/40 border-red-800/80'
+                  ? 'bg-rose-50 border-rose-200'
                   : alert.severity === 'CRITICAL'
-                  ? 'bg-amber-950/40 border-amber-800/80'
-                  : 'bg-slate-900 border-slate-800'
+                  ? 'bg-amber-50 border-amber-200'
+                  : 'bg-white border-slate-200'
               }`}
             >
               <div className="flex items-start gap-3">
                 <div className="mt-0.5">
                   {alert.severity === 'EMERGENCY' ? (
-                    <Octagon className="w-5 h-5 text-red-400" />
+                    <Octagon className="w-5 h-5 text-rose-600" />
                   ) : alert.severity === 'CRITICAL' ? (
-                    <AlertTriangle className="w-5 h-5 text-amber-400" />
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
                   ) : (
-                    <Bell className="w-5 h-5 text-cyan-400" />
+                    <Bell className="w-5 h-5 text-blue-600" />
                   )}
                 </div>
 
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-white">{alert.title}</h4>
+                    <h4 className="text-xs font-bold text-slate-900">{alert.title}</h4>
                     {getSeverityBadge(alert.severity)}
                   </div>
-                  <p className="text-xs text-slate-300 mt-1">{alert.message}</p>
+                  <p className="text-xs text-slate-700 mt-1">{alert.message}</p>
                   <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-500">
-                    <Clock className="w-3 h-3" />
+                    <Clock className="w-3 h-3 text-slate-400" />
                     <span>{new Date(alert.timestamp).toLocaleString()}</span>
                     <span>•</span>
                     <span>Device: {alert.deviceId}</span>
@@ -179,7 +179,7 @@ export const EmergencyCenter: React.FC = () => {
               {!alert.acknowledged && (
                 <button
                   onClick={() => acknowledgeAlert(alert.id)}
-                  className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition shrink-0 cursor-pointer"
+                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition shrink-0 cursor-pointer border border-slate-200"
                 >
                   Acknowledge
                 </button>

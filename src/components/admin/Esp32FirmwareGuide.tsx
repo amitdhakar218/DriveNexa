@@ -82,7 +82,7 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // 1. Safety Watchdog Timeout Check (Section 10)
+  // 1. Safety Watchdog Timeout Check (Section 10 & 13)
   if (now - lastValidCommandTime > COMMAND_TIMEOUT_MS) {
     stopMotors(); // Local hardware safety: never move continuously without heartbeat
   }
@@ -117,30 +117,30 @@ void loop() {
   };
 
   return (
-    <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+    <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <Cpu className="w-5 h-5 text-cyan-400" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+          <Cpu className="w-5 h-5 text-blue-600" />
+          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
             ESP32 Reference Firmware Sketch
           </h3>
         </div>
 
         <button
           onClick={handleCopy}
-          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 flex items-center gap-1.5 transition cursor-pointer"
+          className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-blue-700 flex items-center gap-1.5 transition cursor-pointer shadow-xs"
         >
-          {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+          {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
           <span>{copied ? 'Copied' : 'Copy C++ Sketch'}</span>
         </button>
       </div>
 
-      <p className="text-xs text-slate-400 leading-relaxed">
+      <p className="text-xs text-slate-600 leading-relaxed">
         Pre-configured Arduino C++ sketch incorporating the 1500ms local hardware safety watchdog, L298N motor driver logic, and direct low-latency communication with the project's Firebase RTDB instance.
       </p>
 
       <div className="relative">
-        <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300 overflow-x-auto max-h-80 scrollbar-thin">
+        <pre className="p-4 rounded-xl bg-slate-900 border border-slate-800 font-mono text-xs text-slate-100 overflow-x-auto max-h-80 scrollbar-thin">
           {sampleCode}
         </pre>
       </div>

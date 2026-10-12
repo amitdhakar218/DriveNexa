@@ -88,31 +88,31 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
     switch (status) {
       case 'ACTIVE':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-950 text-emerald-400 border border-emerald-600/50">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
             ACTIVE
           </span>
         );
       case 'NOT CONNECTED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-950 text-amber-400 border border-amber-600/50">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
             NOT CONNECTED
           </span>
         );
       case 'ERROR':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-950 text-red-400 border border-red-600/50">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
             ERROR
           </span>
         );
       case 'DISABLED':
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
             DISABLED
           </span>
         );
       default:
         return (
-          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-900 text-slate-400 border border-slate-800">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
             UNKNOWN
           </span>
         );
@@ -120,87 +120,87 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-      <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-cyan-400">
+            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-600">
               {icon}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">{metricTitle} Detail</h2>
-              <p className="text-xs text-slate-400">{sensor.name}</p>
+              <h2 className="text-lg font-bold text-slate-900">{metricTitle} Detail</h2>
+              <p className="text-xs text-slate-500">{sensor.name}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/60"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Current State Banner */}
+        {/* Current State Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 my-5">
           {/* Current Real Value */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
               Current Live Value
             </span>
             <div className="mt-1 flex items-baseline gap-1.5">
               {hasRealValue ? (
                 <>
-                  <span className="text-3xl font-black text-white">
+                  <span className="text-3xl font-extrabold text-slate-900">
                     {sensor.currentValue}
                   </span>
-                  <span className="text-sm font-semibold text-cyan-400">
+                  <span className="text-sm font-semibold text-blue-600">
                     {sensor.unit}
                   </span>
                 </>
               ) : (
-                <span className="text-sm font-bold text-amber-400">
+                <span className="text-sm font-bold text-amber-700">
                   {sensor.status === 'NOT CONNECTED' ? 'Not Connected' : 'Unavailable'}
                 </span>
               )}
             </div>
-            <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1">
-              <Clock className="w-3 h-3" />
+            <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1 font-medium">
+              <Clock className="w-3 h-3 text-slate-400" />
               <span>
                 {sensor.lastUpdate
                   ? `Last reported: ${new Date(sensor.lastUpdate).toLocaleTimeString()}`
-                  : 'Awaiting first hardware report'}
+                  : 'Awaiting hardware report'}
               </span>
             </div>
           </div>
 
           {/* Connection & Sensor Health */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
               Hardware Status
             </span>
             <div className="mt-2">{getStatusBadge(sensor.status)}</div>
-            <div className="mt-3 text-[10px] text-slate-400 flex items-center gap-1">
-              <Radio className="w-3 h-3 text-cyan-400" />
+            <div className="mt-3 text-[10px] text-slate-600 font-medium flex items-center gap-1">
+              <Radio className="w-3 h-3 text-blue-500" />
               <span>Pin / Interface: {sensor.firmwarePin || 'GPIO Configurable'}</span>
             </div>
           </div>
 
           {/* Thresholds & Safety Limits */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
-            <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
               Safety Thresholds
             </span>
             <div className="mt-1 space-y-1 text-xs">
-              <div className="flex justify-between text-slate-300">
+              <div className="flex justify-between text-slate-700">
                 <span>Max Safe Limit:</span>
-                <span className="font-mono text-cyan-300">
+                <span className="font-mono font-bold text-slate-900">
                   {sensor.maxThreshold ? `${sensor.maxThreshold} ${sensor.unit}` : 'Not set'}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-300">
+              <div className="flex justify-between text-slate-700">
                 <span>Min Safe Limit:</span>
-                <span className="font-mono text-cyan-300">
+                <span className="font-mono font-bold text-slate-900">
                   {sensor.minThreshold ? `${sensor.minThreshold} ${sensor.unit}` : 'Not set'}
                 </span>
               </div>
@@ -211,20 +211,20 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
         {/* Date / Time Filtering */}
         <div className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-blue-600" />
               <span>Historical Telemetry Filter</span>
             </span>
 
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
               {(['TODAY', 'YESTERDAY', '7D', '30D', 'CUSTOM'] as DateFilter[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => setDateFilter(f)}
-                  className={`px-2.5 py-1 rounded-lg font-medium text-[11px] transition ${
+                  className={`px-3 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer ${
                     dateFilter === f
-                      ? 'bg-cyan-500 text-slate-950 font-bold'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
                   {f === '7D' ? '7 Days' : f === '30D' ? '30 Days' : f}
@@ -234,19 +234,19 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
           </div>
 
           {dateFilter === 'CUSTOM' && (
-            <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-slate-50 border border-slate-200">
               <input
                 type="datetime-local"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="bg-slate-900 border border-slate-700 text-xs text-white rounded-lg p-2"
+                className="bg-white border border-slate-300 text-xs text-slate-900 rounded-lg p-2"
               />
-              <span className="text-xs text-slate-500">to</span>
+              <span className="text-xs text-slate-500 font-medium">to</span>
               <input
                 type="datetime-local"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="bg-slate-900 border border-slate-700 text-xs text-white rounded-lg p-2"
+                className="bg-white border border-slate-300 text-xs text-slate-900 rounded-lg p-2"
               />
             </div>
           )}
@@ -254,7 +254,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
           {/* Chart Display */}
           {loadingHistory ? (
             <div className="h-44 flex items-center justify-center text-slate-500 text-xs">
-              Querying telemetry records...
+              Querying historical telemetry...
             </div>
           ) : (
             <TelemetryChart
@@ -266,14 +266,14 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
         </div>
 
         {/* Sensor Driver / Firmware Integration Note */}
-        <div className="mt-6 p-4 rounded-xl bg-cyan-950/30 border border-cyan-800/40 text-xs text-slate-300">
-          <div className="flex items-center gap-2 font-semibold text-cyan-300 mb-1">
-            <Cpu className="w-4 h-4" />
-            <span>ESP32 Physical Integration Architecture</span>
+        <div className="mt-6 p-4 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-slate-700">
+          <div className="flex items-center gap-2 font-bold text-blue-900 mb-1">
+            <Cpu className="w-4 h-4 text-blue-600" />
+            <span>Hardware Driver & Firmware Mapping</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            This metric subscribes to realtime hardware telemetry published from the rover's microcontrollers.
-            To connect hardware, use the ESP32 firmware sketch available in the Admin Console to stream readings via Firebase Realtime Database or Firestore.
+          <p className="text-[11px] text-slate-600 leading-relaxed">
+            Telemetry is streamed strictly from connected microcontrollers to Firebase.
+            If no hardware has reported data yet, DriveNexa displays an authentic unavailable state without generating artificial values.
           </p>
         </div>
       </div>

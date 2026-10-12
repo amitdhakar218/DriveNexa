@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SensorDefinition, SensorType } from '../../types';
-import { X, Plus, Cpu, ShieldCheck } from 'lucide-react';
+import { X, Plus, Cpu } from 'lucide-react';
 
 interface AddSensorModalProps {
   isOpen: boolean;
@@ -58,21 +58,21 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 relative">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-cyan-950 border border-cyan-800 text-cyan-400">
+            <div className="p-2 rounded-xl bg-blue-50 border border-blue-100 text-blue-600">
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Register Sensor Plug-In</h2>
-              <p className="text-xs text-slate-400">Future Hardware Integration Definition</p>
+              <h2 className="text-base font-bold text-slate-900">Register Sensor Plug-In</h2>
+              <p className="text-xs text-slate-500">Future Hardware Integration Definition</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/60"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -80,7 +80,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
               Sensor Label & Model
             </label>
             <input
@@ -89,19 +89,19 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Sharp GP2Y0A21YK0F IR Rangefinder"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 Sensor Category
               </label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as SensorType)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
               >
                 <option value="distance">Distance / Proximity</option>
                 <option value="speed">Speed / Tachometer</option>
@@ -116,7 +116,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 Measurement Unit
               </label>
               <input
@@ -125,14 +125,14 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
                 placeholder="e.g. cm, °C, V, m/s²"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 Microcontroller Pin
               </label>
               <input
@@ -140,18 +140,18 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="e.g. GPIO14 or SDA/SCL"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 Hardware Protocol
               </label>
               <select
                 value={protocol}
                 onChange={(e) => setProtocol(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
               >
                 <option value="GPIO">Digital GPIO</option>
                 <option value="ADC">Analog (ADC)</option>
@@ -164,33 +164,33 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Min Safety Limit (Optional)
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Min Safe Limit (Optional)
               </label>
               <input
                 type="number"
                 value={minThreshold}
                 onChange={(e) => setMinThreshold(e.target.value)}
                 placeholder="Optional lower limit"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Max Safety Limit (Optional)
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Max Safe Limit (Optional)
               </label>
               <input
                 type="number"
                 value={maxThreshold}
                 onChange={(e) => setMaxThreshold(e.target.value)}
                 placeholder="Optional upper limit"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
             Registered sensors will display as <strong>NOT CONNECTED</strong> until the physical ESP32 firmware begins reporting matching telemetry readings.
           </div>
 
@@ -198,14 +198,14 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-1/2 py-2.5 text-xs text-slate-400 bg-slate-800 rounded-xl hover:text-white"
+              className="w-1/2 py-2.5 text-xs text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="w-1/2 py-2.5 text-xs font-bold text-slate-950 bg-cyan-400 rounded-xl hover:bg-cyan-300 cursor-pointer disabled:opacity-50"
+              className="w-1/2 py-2.5 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 cursor-pointer disabled:opacity-50 shadow-xs"
             >
               {loading ? 'Registering...' : 'Save Sensor Definition'}
             </button>

@@ -517,3 +517,35 @@ export async function resetEmergencyLock(deviceId: string) {
     motorStatus: 'STANDBY',
   });
 }
+
+/**
+ * Submit User Feedback with automatic device & environment metadata (Section 24)
+ */
+export async function submitUserFeedback(feedback: import('../types').FeedbackSubmission) {
+  try {
+    const feedbackDoc = doc(db, 'feedback', feedback.id);
+    await setDoc(feedbackDoc, feedback);
+    return true;
+  } catch (err) {
+    console.warn('Feedback submission note:', err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch feedback submissions for Admin Review
+ */
+export async function fetchAllFeedback(): Promise<import('../types').FeedbackSubmission[]> {
+  try {
+    const coll = collection(db, 'feedback');
+    const q = query(coll, orderBy('timestamp', 'desc'), limit(50));
+    const snap = await getDocs(q);
+    const list: import('../types').FeedbackSubmission[] = [];
+    snap.forEach((d) => list.push(d.data() as import('../types').FeedbackSubmission));
+    return list;
+  } catch (err) {
+    console.warn('Feedback query note:', err);
+    return [];
+  }
+}
+
