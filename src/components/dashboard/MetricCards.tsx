@@ -3,6 +3,7 @@ import { useDevice } from '../../context/DeviceContext';
 import { SensorDefinition } from '../../types';
 import { CardDetailModal } from './CardDetailModal';
 import { TabKey } from '../layout/BottomNav';
+import { DeviceRegistrationModal } from './DeviceRegistrationModal';
 import {
   Gauge,
   Thermometer,
@@ -17,6 +18,7 @@ import {
   ChevronRight,
   AlertTriangle,
   Radio,
+  Plus,
 } from 'lucide-react';
 
 interface MetricCardsProps {
@@ -30,10 +32,11 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   onOpenSensorManager,
   onOpenLiveCamera,
 }) => {
-  const { device, sensors, liveGps } = useDevice();
+  const { device, sensors, liveGps, connectionState, activeDeviceId } = useDevice();
   const [selectedSensor, setSelectedSensor] = useState<SensorDefinition | null>(null);
   const [modalTitle, setModalTitle] = useState('');
   const [modalIcon, setModalIcon] = useState<React.ReactNode>(null);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
   const speedSensor = sensors.find((s) => s.type === 'speed');
   const tempSensor = sensors.find((s) => s.type === 'temperature');
@@ -47,10 +50,34 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
     }
   };
 
-  const isOnline = device?.status === 'ONLINE';
+  const isConnected = connectionState === 'CONNECTED';
 
   return (
     <div className="space-y-4">
+      {/* If no device is currently paired or selected */}
+      {!device && (
+        <div className="p-5 rounded-2xl bg-blue-50/80 border border-blue-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-blue-600 text-white shadow-xs">
+              <Cpu className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">No Vehicle Device Registered</h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Register or pair your hardware rover by entering its unique Device ID.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsRegisterModalOpen(true)}
+            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Pair / Claim Rover ID</span>
+          </button>
+        </div>
+      )}
+
       {/* Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* 1. Speed Card */}
@@ -69,14 +96,14 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
               Speed
             </span>
             <div className="mt-1">
-              {speedSensor?.currentValue !== null && speedSensor?.status === 'ACTIVE' ? (
+              {isConnected && speedSensor?.currentValue !== null && speedSensor?.status === 'ACTIVE' ? (
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl font-black text-slate-900">{speedSensor?.currentValue}</span>
                   <span className="text-xs font-bold text-blue-600">{speedSensor?.unit}</span>
                 </div>
               ) : (
                 <span className="text-xs font-bold text-amber-600">
-                  {speedSensor?.status === 'NOT CONNECTED' ? 'Not Connected' : 'Unavailable'}
+                  {!isConnected ? 'Not Connected' : speedSensor?.status === 'DISABLED' ? 'Disabled' : 'No Data Available'}
                 </span>
               )}
             </div>
@@ -99,14 +126,14 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
               Temperature
             </span>
             <div className="mt-1">
-              {tempSensor?.currentValue !== null && tempSensor?.status === 'ACTIVE' ? (
+              {isConnected && tempSensor?.currentValue !== null && tempSensor?.status === 'ACTIVE' ? (
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl font-black text-slate-900">{tempSensor?.currentValue}</span>
                   <span className="text-xs font-bold text-rose-600">{tempSensor?.unit}</span>
                 </div>
               ) : (
                 <span className="text-xs font-bold text-amber-600">
-                  {tempSensor?.status === 'NOT CONNECTED' ? 'Not Connected' : 'Unavailable'}
+                  {!isConnected ? 'Not Connected' : tempSensor?.status === 'DISABLED' ? 'Disabled' : 'No Data Available'}
                 </span>
               )}
             </div>
@@ -129,14 +156,14 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
               Battery
             </span>
             <div className="mt-1">
-              {batterySensor?.currentValue !== null && batterySensor?.status === 'ACTIVE' ? (
+              {isConnected && batterySensor?.currentValue !== null && batterySensor?.status === 'ACTIVE' ? (
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl font-black text-slate-900">{batterySensor?.currentValue}</span>
                   <span className="text-xs font-bold text-emerald-600">{batterySensor?.unit}</span>
                 </div>
               ) : (
                 <span className="text-xs font-bold text-amber-600">
-                  {batterySensor?.status === 'NOT CONNECTED' ? 'Not Connected' : 'Unavailable'}
+                  {!isConnected ? 'Not Connected' : batterySensor?.status === 'DISABLED' ? 'Disabled' : 'No Data Available'}
                 </span>
               )}
             </div>
@@ -159,13 +186,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
               GPS Positioning
             </span>
             <div className="mt-1">
-              {liveGps && liveGps.latitude !== null && liveGps.longitude !== null ? (
+              {isConnected && liveGps && liveGps.latitude !== null && liveGps.longitude !== null && liveGps.status === 'FIX_ACQUIRED' ? (
                 <div className="text-xs font-mono font-bold text-indigo-800 truncate">
                   {liveGps.latitude.toFixed(4)}, {liveGps.longitude.toFixed(4)}
                 </div>
               ) : (
                 <span className="text-xs font-bold text-amber-600">
-                  GPS Not Connected
+                  {!isConnected ? 'Rover Offline' : 'No GPS data available'}
                 </span>
               )}
             </div>
@@ -189,9 +216,15 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             </span>
             <div className="mt-1">
               <span className={`text-xs font-bold ${
-                device?.cameraStatus === 'CONNECTED' ? 'text-emerald-700' : 'text-amber-600'
+                isConnected && device?.cameraStatus === 'STREAMING' ? 'text-emerald-700' : 'text-amber-600'
               }`}>
-                {device?.cameraStatus === 'CONNECTED' ? 'Feed Connected' : 'Camera Not Connected'}
+                {!isConnected
+                  ? 'Rover Disconnected'
+                  : device?.cameraStatus === 'STREAMING'
+                  ? 'Feed Streaming'
+                  : device?.cameraStreamUrl
+                  ? 'Configured (Unverified)'
+                  : 'Not Connected'}
               </span>
             </div>
           </div>
@@ -207,13 +240,13 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
           </div>
           <div className="mt-4">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Signal & Gateway
+              Hardware Heartbeat
             </span>
             <div className="mt-1">
               <span className={`text-xs font-bold ${
-                isOnline ? 'text-emerald-700' : 'text-amber-600'
+                isConnected ? 'text-emerald-700' : 'text-amber-600'
               }`}>
-                {isOnline ? 'Active ESP32 Gateway' : 'No Connection'}
+                {isConnected ? 'Active ESP32 Stream' : 'Disconnected / Offline'}
               </span>
             </div>
           </div>
@@ -285,7 +318,11 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             </span>
             <div className="mt-1">
               <span className="text-xs font-bold text-slate-800">
-                {device?.motorStatus || 'STANDBY'}
+                {isConnected && device?.motorStatus && device.motorStatus !== 'UNKNOWN'
+                  ? device.motorStatus
+                  : !isConnected
+                  ? 'Not Connected'
+                  : 'No Data Available'}
               </span>
             </div>
           </div>
@@ -307,7 +344,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             </span>
             <div className="mt-1">
               <span className="text-xs font-bold text-slate-800 truncate block">
-                {device?.hardwareModel || 'ESP32 Rover'}
+                {device?.hardwareModel || (activeDeviceId ? activeDeviceId : 'No Device Selected')}
               </span>
             </div>
           </div>
@@ -321,6 +358,12 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
         isOpen={!!selectedSensor}
         onClose={() => setSelectedSensor(null)}
         icon={modalIcon}
+      />
+
+      {/* Device Registration Modal */}
+      <DeviceRegistrationModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
       />
     </div>
   );

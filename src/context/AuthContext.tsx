@@ -9,7 +9,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../config/firebase';
 import { UserProfile, UserRole } from '../types';
 import { verifyBiometricSensitiveAction, checkBiometricSupport, registerDevicePasskey } from '../services/biometricService';
@@ -27,6 +27,8 @@ interface AuthContextType {
   requireBiometricVerification: (actionDesc: string) => Promise<boolean>;
   enablePasskeyBiometric: () => Promise<boolean>;
   updateUserRole: (newRole: UserRole) => Promise<void>;
+  addAuthorizedDevice: (deviceId: string) => Promise<void>;
+  removeAuthorizedDevice: (deviceId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,9 +52,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const snap = await getDoc(userDocRef);
 
           if (snap.exists()) {
-            setUserProfile(snap.data() as UserProfile);
+            const data = snap.data() as UserProfile;
+            setUserProfile(data);
           } else {
-            // New user profile initialization
+            // New user profile initialization (clean authorized devices list by default)
             const isInitialAdmin = firebaseUser.email === 'carinovation1@gmail.com';
             const initialProfile: UserProfile = {
               uid: firebaseUser.uid,
@@ -62,23 +65,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: isInitialAdmin ? 'ADMIN' : 'USER',
               createdAt: Date.now(),
               lastLogin: Date.now(),
-              authorizedDevices: ['ROVER-ESP32-01'],
+              authorizedDevices: [],
             };
             await setDoc(userDocRef, initialProfile);
             setUserProfile(initialProfile);
           }
         } catch (err) {
           console.warn('User profile fetch note:', err);
-          // Fallback profile if offline
+          const isInitialAdmin = firebaseUser.email === 'carinovation1@gmail.com';
           setUserProfile({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName || 'Authorized Operator',
             photoURL: firebaseUser.photoURL,
-            role: firebaseUser.email === 'carinovation1@gmail.com' ? 'ADMIN' : 'USER',
+            role: isInitialAdmin ? 'ADMIN' : 'USER',
             createdAt: Date.now(),
             lastLogin: Date.now(),
-            authorizedDevices: ['ROVER-ESP32-01'],
+            authorizedDevices: [],
           });
         }
       } else {
@@ -98,15 +101,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     if (cred.user) {
       await updateProfile(cred.user, { displayName });
+      const isInitialAdmin = cred.user.email === 'carinovation1@gmail.com';
       const initialProfile: UserProfile = {
         uid: cred.user.uid,
         email: cred.user.email,
         displayName,
         photoURL: null,
-        role: cred.user.email === 'carinovation1@gmail.com' ? 'ADMIN' : 'USER',
+        role: isInitialAdmin ? 'ADMIN' : 'USER',
         createdAt: Date.now(),
         lastLogin: Date.now(),
-        authorizedDevices: ['ROVER-ESP32-01'],
+        authorizedDevices: [],
       };
       await setDoc(doc(db, 'users', cred.user.uid), initialProfile);
       setUserProfile(initialProfile);
@@ -130,8 +134,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await verifyBiometricSensitiveAction(user.uid, actionDesc);
       return res.verified;
-    } catch (err: any) {
-      alert(err.message || 'Biometric security verification failed.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Biometric security verification failed.';
+      alert(msg);
       return false;
     }
   };
@@ -149,8 +154,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
       return false;
-    } catch (err: any) {
-      alert(err.message || 'Passkey enrollment error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Passkey enrollment error';
+      alert(msg);
       return false;
     }
   };
@@ -160,6 +166,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = { ...userProfile, role: newRole };
     setUserProfile(updated);
     await setDoc(doc(db, 'users', user.uid), { role: newRole }, { merge: true });
+  };
+
+  const addAuthorizedDevice = async (deviceId: string) => {
+    if (!user || !userProfile) return;
+    if (userProfile.authorizedDevices.includes(deviceId)) return;
+
+    const updatedDevices = [...userProfile.authorizedDevices, deviceId];
+    const updated = { ...userProfile, authorizedDevices: updatedDevices };
+    setUserProfile(updated);
+    await updateDoc(doc(db, 'users', user.uid), { authorizedDevices: updatedDevices });
+  };
+
+  const removeAuthorizedDevice = async (deviceId: string) => {
+    if (!user || !userProfile) return;
+    const updatedDevices = userProfile.authorizedDevices.filter((id) => id !== deviceId);
+    const updated = { ...userProfile, authorizedDevices: updatedDevices };
+    setUserProfile(updated);
+    await updateDoc(doc(db, 'users', user.uid), { authorizedDevices: updatedDevices });
   };
 
   return (
@@ -177,6 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         requireBiometricVerification,
         enablePasskeyBiometric,
         updateUserRole,
+        addAuthorizedDevice,
+        removeAuthorizedDevice,
       }}
     >
       {children}

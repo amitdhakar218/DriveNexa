@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: is owner of user doc
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper: check if user is authorized for device
+    function isAuthorizedForDevice(deviceId) {
+      return isAuthenticated() && (
+        request.auth.token.email == 'carinovation1@gmail.com' ||
+        get(/databases/$(database)/documents/devices/$(deviceId)).data.ownerId == request.auth.uid ||
+        request.auth.uid in get(/databases/$(database)/documents/devices/$(deviceId)).data.authorizedUsers
+      );
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isUser(userId) || request.auth.token.email == 'carinovation1@gmail.com';
+    }
+
+    // Device documents
+    match /devices/{deviceId} {
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        resource.data.ownerId == request.auth.uid ||
+        request.auth.uid in resource.data.authorizedUsers ||
+        request.auth.token.email == 'carinovation1@gmail.com'
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.ownerId == request.auth.uid ||
+        request.auth.token.email == 'carinovation1@gmail.com'
+      );
+      allow update, delete: if isAuthorizedForDevice(deviceId);
+
+      // Sensors subcollection
+      match /sensors/{sensorId} {
+        allow read: if isAuthorizedForDevice(deviceId);
+        allow write: if isAuthorizedForDevice(deviceId);
+      }
+
+      // Telemetry subcollection
+      match /telemetry/{telemetryId} {
+        allow read: if isAuthorizedForDevice(deviceId);
+        allow write: if isAuthorizedForDevice(deviceId);
+      }
+
+      // GPS subcollection
+      match /gps_records/{recordId} {
+        allow read: if isAuthorizedForDevice(deviceId);
+        allow write: if isAuthorizedForDevice(deviceId);
+      }
+
+      // Commands subcollection
+      match /commands/{commandId} {
+        allow read: if isAuthorizedForDevice(deviceId);
+        allow create: if isAuthorizedForDevice(deviceId) && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isAuthorizedForDevice(deviceId);
+      }
+
+      // Alerts subcollection
+      match /alerts/{alertId} {
+        allow read: if isAuthorizedForDevice(deviceId);
+        allow write: if isAuthorizedForDevice(deviceId);
+      }
+    }
+
+    // Global Feedback
+    match /feedback/{feedbackId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        request.auth.token.email == 'carinovation1@gmail.com'
+      );
+    }
+
+    // Global commands collection if used
+    match /commands/{deviceId}/{commandId} {
+      allow read, write: if isAuthorizedForDevice(deviceId);
+    }
+  }
+}

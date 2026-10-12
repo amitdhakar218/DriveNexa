@@ -36,7 +36,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
       deviceId,
       name,
       type,
-      status: 'NOT CONNECTED', // Honest default: NOT connected until firmware reports!
+      status: 'NOT_CONNECTED', // Honest default: NOT connected until firmware reports!
       enabled: true,
       currentValue: null,
       unit,

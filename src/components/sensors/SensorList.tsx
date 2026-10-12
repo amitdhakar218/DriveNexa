@@ -31,7 +31,7 @@ export const SensorList: React.FC = () => {
             ACTIVE
           </span>
         );
-      case 'NOT CONNECTED':
+      case 'NOT_CONNECTED':
         return (
           <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
             <AlertCircle className="w-3 h-3 text-amber-600" />
@@ -65,7 +65,7 @@ export const SensorList: React.FC = () => {
   const filteredSensors = sensors.filter((s) => {
     if (filterType === 'ALL') return true;
     if (filterType === 'ACTIVE') return s.status === 'ACTIVE';
-    if (filterType === 'DISCONNECTED') return s.status === 'NOT CONNECTED';
+    if (filterType === 'DISCONNECTED') return s.status === 'NOT_CONNECTED';
     return true;
   });
 
@@ -110,7 +110,7 @@ export const SensorList: React.FC = () => {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              {f} ({sensors.filter((s) => (f === 'ALL' ? true : f === 'ACTIVE' ? s.status === 'ACTIVE' : s.status === 'NOT CONNECTED')).length})
+              {f} ({sensors.filter((s) => (f === 'ALL' ? true : f === 'ACTIVE' ? s.status === 'ACTIVE' : s.status === 'NOT_CONNECTED')).length})
             </button>
           ))}
         </div>
@@ -185,7 +185,7 @@ export const SensorList: React.FC = () => {
                       </span>
                     ) : (
                       <span className="text-xs font-bold text-amber-700">
-                        {sensor.status === 'NOT CONNECTED' ? 'Not Connected' : 'Unavailable'}
+                        {sensor.status === 'NOT_CONNECTED' ? 'Not Connected' : 'Unavailable'}
                       </span>
                     )}
                   </div>

@@ -92,7 +92,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
             ACTIVE
           </span>
         );
-      case 'NOT CONNECTED':
+      case 'NOT_CONNECTED':
         return (
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
             NOT CONNECTED
@@ -160,7 +160,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                 </>
               ) : (
                 <span className="text-sm font-bold text-amber-700">
-                  {sensor.status === 'NOT CONNECTED' ? 'Not Connected' : 'Unavailable'}
+                  {sensor.status === 'NOT_CONNECTED' ? 'Not Connected' : 'Unavailable'}
                 </span>
               )}
             </div>

@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Copy, Check, Terminal, Cpu, ShieldCheck } from 'lucide-react';
+import { useDevice } from '../../context/DeviceContext';
 
 export const Esp32FirmwareGuide: React.FC = () => {
+  const { activeDeviceId } = useDevice();
   const [copied, setCopied] = useState(false);
+
+  const targetDeviceId = activeDeviceId || 'YOUR_REGISTERED_DEVICE_ID';
 
   const sampleCode = `/**
  * DriveNexa Rover Platform - ESP32 Production Firmware Sketch
@@ -15,6 +19,9 @@ export const Esp32FirmwareGuide: React.FC = () => {
 
 #define WIFI_SSID "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+
+// Hardware Device ID registered in DriveNexa
+#define DEVICE_ID "${targetDeviceId}"
 
 // Firebase Configuration from DriveNexa platform
 #define API_KEY "AIzaSyCNT317RYdI6JWWo8QqzHBQu80cGqUng3Q"
@@ -30,7 +37,7 @@ export const Esp32FirmwareGuide: React.FC = () => {
 
 // Safety Watchdog
 unsigned long lastValidCommandTime = 0;
-const unsigned long COMMAND_TIMEOUT_MS = 1500; // Auto-stop if no heartbeat in 1.5s
+const unsigned long COMMAND_TIMEOUT_MS = 1500; // Auto-stop if no command heartbeat in 1.5s
 
 FirebaseData fbdo;
 FirebaseAuth auth;
@@ -51,8 +58,6 @@ void stopMotors() {
   digitalWrite(PIN_IN2, LOW);
   digitalWrite(PIN_IN3, LOW);
   digitalWrite(PIN_IN4, LOW);
-  ledcWrite(0, 0);
-  ledcWrite(1, 0);
 }
 
 void driveForward(int speed) {
@@ -82,13 +87,14 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // 1. Safety Watchdog Timeout Check (Section 10 & 13)
+  // 1. Safety Watchdog Timeout Check (Local Hardware Safety)
   if (now - lastValidCommandTime > COMMAND_TIMEOUT_MS) {
-    stopMotors(); // Local hardware safety: never move continuously without heartbeat
+    stopMotors(); // Local hardware safety: never move without fresh heartbeat
   }
 
-  // 2. Poll / Stream Commands from Firebase RTDB
-  if (Firebase.RTDB.getJSON(&fbdo, "/devices/ROVER-ESP32-01/currentCommand")) {
+  // 2. Poll / Stream Commands from Firebase RTDB for THIS specific device
+  String cmdPath = "/devices/" + String(DEVICE_ID) + "/currentCommand";
+  if (Firebase.RTDB.getJSON(&fbdo, cmdPath.c_str())) {
     FirebaseJson &json = fbdo.jsonObject();
     FirebaseJsonData cmdData;
     json.get(cmdData, "command");
@@ -105,7 +111,8 @@ void loop() {
   static unsigned long lastHeartbeat = 0;
   if (now - lastHeartbeat > 2000) {
     lastHeartbeat = now;
-    Firebase.RTDB.setInt(&fbdo, "/devices/ROVER-ESP32-01/heartbeat/lastSeen", (int)(now / 1000));
+    String hbPath = "/devices/" + String(DEVICE_ID) + "/heartbeat/lastSeen";
+    Firebase.RTDB.setInt(&fbdo, hbPath.c_str(), (int)(now / 1000));
   }
 }
 `;

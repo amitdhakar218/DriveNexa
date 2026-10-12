@@ -14,16 +14,12 @@ import {
   Lock,
   Unlock,
   Gauge,
-  Wifi,
   WifiOff,
-  AlertTriangle,
   RotateCcw,
-  Zap,
-  Info,
 } from 'lucide-react';
 
 export const RemoteControl: React.FC = () => {
-  const { device, sendCommand, emergencyStop, resetEmergency } = useDevice();
+  const { device, sendCommand, emergencyStop, resetEmergency, connectionState, activeDeviceId } = useDevice();
   const { user, userProfile } = useAuth();
 
   const [isArmingUnlocked, setIsArmingUnlocked] = useState(false);
@@ -31,23 +27,27 @@ export const RemoteControl: React.FC = () => {
   const [speedPercentage, setSpeedPercentage] = useState<number>(50);
   const [lastSentCommand, setLastSentCommand] = useState<RoverCommand | null>(null);
   const [activeButton, setActiveButton] = useState<CommandAction | null>(null);
-  const [commandStatusMsg, setCommandStatusMsg] = useState<string>('Standby - Safety Watchdog Active');
-  const [isSending, setIsSending] = useState(false);
+  const [commandStatusMsg, setCommandStatusMsg] = useState<string>('Standby — Safety Watchdog Active');
 
-  const isOnline = device?.status === 'ONLINE';
+  const isConnected = connectionState === 'CONNECTED';
   const isEmergencyLocked = !!device?.safetyLock;
-  const isMovementDisabled = !isOnline || isEmergencyLocked || !isArmingUnlocked;
+  const isMovementDisabled = !isConnected || isEmergencyLocked || !isArmingUnlocked || !activeDeviceId;
 
   const handleCommand = useCallback(
     async (cmd: CommandAction) => {
-      // Emergency Stop and normal Stop are always allowed if needed
+      if (!activeDeviceId) {
+        setCommandStatusMsg('DISPATCH BLOCKED: No vehicle device selected or paired.');
+        return;
+      }
+
+      // Emergency Stop and normal Stop are always allowed to be broadcast
       if (cmd !== 'STOP' && cmd !== 'EMERGENCY_STOP') {
         if (!isArmingUnlocked) {
           setShowSensitiveModal(true);
           return;
         }
 
-        if (!isOnline) {
+        if (!isConnected) {
           setCommandStatusMsg('DISPATCH BLOCKED: Rover is offline. Movement controls disabled for safety.');
           return;
         }
@@ -59,20 +59,19 @@ export const RemoteControl: React.FC = () => {
       }
 
       setActiveButton(cmd);
-      setIsSending(true);
 
       try {
         const payload = await sendCommand(cmd, speedPercentage);
         setLastSentCommand(payload);
-        setCommandStatusMsg(`Transmitted [${cmd}] at ${new Date(payload.timestamp).toLocaleTimeString()} (Expires in 1500ms)`);
-      } catch (err: any) {
-        setCommandStatusMsg(`Command failed: ${err.message || 'Network error'}`);
+        setCommandStatusMsg(`Dispatched [${cmd}] at ${new Date(payload.timestamp).toLocaleTimeString()} (Expires in 1500ms)`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Network error';
+        setCommandStatusMsg(`Command failed: ${msg}`);
       } finally {
-        setIsSending(false);
         setTimeout(() => setActiveButton(null), 250);
       }
     },
-    [isArmingUnlocked, isOnline, isEmergencyLocked, sendCommand, speedPercentage]
+    [activeDeviceId, isArmingUnlocked, isConnected, isEmergencyLocked, sendCommand, speedPercentage]
   );
 
   // Keyboard navigation support (WASD and Arrow keys)
@@ -112,11 +111,11 @@ export const RemoteControl: React.FC = () => {
               Rover Remote Control
             </h1>
             <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              ESP32 4WD H-Bridge
+              {activeDeviceId || 'No Device'}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Realtime motor commands dispatched via low-latency Firebase RTDB with cryptographic timestamps.
+            Realtime motor commands dispatched via low-latency Firebase with cryptographic timestamps.
           </p>
         </div>
 
@@ -143,14 +142,14 @@ export const RemoteControl: React.FC = () => {
       </div>
 
       {/* OFFLINE ENFORCEMENT: Controls strictly disabled notice */}
-      {!isOnline && (
+      {!isConnected && (
         <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-xs">
           <WifiOff className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
             <strong className="font-bold text-amber-900 block mb-0.5">
-              MOVEMENT CONTROLS DISABLED: Rover is Offline
+              MOVEMENT CONTROLS DISABLED: Rover is Offline / Disconnected
             </strong>
-            The physical ESP32 has not broadcast a valid heartbeat. In accordance with Section 12 & 13 remote safety requirements, movement commands are disabled until the physical vehicle establishes an active connection.
+            The physical ESP32 has not broadcast a valid heartbeat within 15 seconds. In accordance with Section 12 & 13 remote safety requirements, movement controls are disabled until the physical vehicle establishes an active connection.
           </div>
         </div>
       )}
@@ -238,7 +237,8 @@ export const RemoteControl: React.FC = () => {
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-mono text-slate-600 space-y-1">
               <div>Command Expiry: 1500 ms (Enforced)</div>
               <div>ESP32 Local Watchdog: Autonomous Fail-Safe</div>
-              <div>Operator: {userProfile?.displayName || user?.email}</div>
+              <div>Authorized Operator: {userProfile?.displayName || user?.email}</div>
+              <div>Active Target: {activeDeviceId || 'None'}</div>
             </div>
           </div>
         </div>
@@ -265,7 +265,6 @@ export const RemoteControl: React.FC = () => {
 
           {/* D-Pad Cluster */}
           <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-4">
-            {/* Ambient center ring */}
             <div className="absolute inset-4 rounded-full border border-slate-200 bg-slate-50 pointer-events-none" />
 
             {/* FORWARD */}

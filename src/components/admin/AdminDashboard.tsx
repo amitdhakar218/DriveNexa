@@ -2,67 +2,60 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useDevice } from '../../context/DeviceContext';
 import { Esp32FirmwareGuide } from './Esp32FirmwareGuide';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
-import { db, rtdb } from '../../config/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import { fetchAllFeedback } from '../../services/firebaseService';
 import { UserProfile, UserRole, DeviceInfo, FeedbackSubmission } from '../../types';
 import {
   Shield,
   Users,
   Smartphone,
-  Activity,
   Server,
-  Terminal,
-  Cpu,
   RefreshCw,
   MessageSquare,
-  AlertTriangle,
-  CheckCircle2,
-  Lock,
-  Layers,
+  Cpu,
   Database,
+  Radio,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { userProfile, updateUserRole } = useAuth();
-  const { device, sensors, alerts } = useDevice();
+  const { device, sensors, alerts, connectionState, activeDeviceId } = useDevice();
 
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'DEVICES' | 'FEEDBACK' | 'FIRMWARE' | 'SCHEMA'>('OVERVIEW');
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
+  const [allFleetDevices, setAllFleetDevices] = useState<DeviceInfo[]>([]);
   const [feedbackList, setFeedbackList] = useState<FeedbackSubmission[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
 
-  const fetchUsers = async () => {
-    setLoadingUsers(true);
+  const fetchAdminData = async () => {
+    setLoadingData(true);
     try {
-      const snap = await getDocs(collection(db, 'users'));
-      const list: UserProfile[] = [];
-      snap.forEach((d) => list.push(d.data() as UserProfile));
-      setUsersList(list);
-    } catch (err) {
-      console.warn('Error fetching users:', err);
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
+      // 1. Fetch Users
+      const snapUsers = await getDocs(collection(db, 'users'));
+      const uList: UserProfile[] = [];
+      snapUsers.forEach((d) => uList.push(d.data() as UserProfile));
+      setUsersList(uList);
 
-  const fetchFeedback = async () => {
-    setLoadingFeedback(true);
-    try {
-      const list = await fetchAllFeedback();
-      setFeedbackList(list);
+      // 2. Fetch Fleet Devices
+      const snapDevs = await getDocs(collection(db, 'devices'));
+      const dList: DeviceInfo[] = [];
+      snapDevs.forEach((d) => dList.push(d.data() as DeviceInfo));
+      setAllFleetDevices(dList);
+
+      // 3. Fetch Feedback
+      const fList = await fetchAllFeedback();
+      setFeedbackList(fList);
     } catch (err) {
-      console.warn('Error fetching feedback:', err);
+      console.warn('Error fetching admin data:', err);
     } finally {
-      setLoadingFeedback(false);
+      setLoadingData(false);
     }
   };
 
   useEffect(() => {
     if (userProfile?.role === 'ADMIN' || userProfile?.role === 'DEVELOPER') {
-      fetchUsers();
-      fetchFeedback();
+      fetchAdminData();
     }
   }, [userProfile]);
 
@@ -98,7 +91,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="flex items-center gap-1 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs text-xs overflow-x-auto">
         {[
           { key: 'OVERVIEW', label: 'System Health' },
-          { key: 'DEVICES', label: 'Fleet & Users' },
+          { key: 'DEVICES', label: `Fleet (${allFleetDevices.length}) & Users (${usersList.length})` },
           { key: 'FEEDBACK', label: `Feedback (${feedbackList.length})` },
           { key: 'FIRMWARE', label: 'ESP32 Firmware C++' },
           { key: 'SCHEMA', label: 'Database Schema' },
@@ -123,23 +116,27 @@ export const AdminDashboard: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="p-4.5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <span className="text-[10px] font-bold text-slate-500 uppercase">
-                Active Fleet
+                Registered Fleet
               </span>
-              <div className="text-2xl font-black text-slate-900 mt-1">1 Unit</div>
-              <div className="text-[11px] text-slate-500 mt-1">{device?.name || 'NexaRover-01'}</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">
+                {allFleetDevices.length} {allFleetDevices.length === 1 ? 'Unit' : 'Units'}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                Active: {activeDeviceId || 'None'}
+              </div>
             </div>
 
             <div className="p-4.5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <span className="text-[10px] font-bold text-slate-500 uppercase">
-                Device Connection
+                Active Vehicle Connection
               </span>
               <div className={`text-2xl font-black mt-1 ${
-                device?.status === 'ONLINE' ? 'text-emerald-700' : 'text-amber-600'
+                connectionState === 'CONNECTED' ? 'text-emerald-700' : 'text-amber-600'
               }`}>
-                {device?.status || 'OFFLINE'}
+                {connectionState}
               </div>
               <div className="text-[11px] text-slate-500 mt-1">
-                {device?.lastSeen ? 'Reported heartbeat' : 'No connection yet'}
+                {device?.lastSeen ? 'Reported heartbeat' : 'No heartbeat received'}
               </div>
             </div>
 
@@ -193,19 +190,64 @@ export const AdminDashboard: React.FC = () => {
 
       {/* TAB 2: FLEET & USERS */}
       {activeTab === 'DEVICES' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Registered Devices in Fleet */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                <Cpu className="w-4 h-4 text-blue-600" />
+                <span>Registered Fleet Devices</span>
+              </div>
+              <button
+                onClick={fetchAdminData}
+                className="p-1.5 rounded-lg bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {allFleetDevices.length === 0 ? (
+                <div className="text-xs text-slate-500 py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  No devices registered in fleet yet.
+                </div>
+              ) : (
+                allFleetDevices.map((d) => (
+                  <div
+                    key={d.deviceId}
+                    className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">{d.name}</div>
+                      <div className="text-slate-500 text-[11px] font-mono mt-0.5">
+                        ID: {d.deviceId} • Model: {d.hardwareModel} • FW: {d.firmwareVersion}
+                      </div>
+                      <div className="text-slate-400 text-[10px] mt-1">
+                        Owner: {d.ownerId} • Last Seen: {d.lastSeen ? new Date(d.lastSeen).toLocaleString() : 'Never'}
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${
+                        d.status === 'CONNECTED'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {d.status}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* User Accounts & Roles */}
           <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
                 <Users className="w-4 h-4 text-blue-600" />
                 <span>Authorized Operators & RBAC</span>
               </div>
-              <button
-                onClick={fetchUsers}
-                className="p-1.5 rounded-lg bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
             </div>
 
             <div className="space-y-2">
@@ -222,6 +264,9 @@ export const AdminDashboard: React.FC = () => {
                     <div>
                       <div className="font-bold text-slate-900">{u.displayName || 'Operator'}</div>
                       <div className="text-[11px] text-slate-500">{u.email}</div>
+                      <div className="text-[10px] text-slate-400">
+                        Devices: {u.authorizedDevices?.length > 0 ? u.authorizedDevices.join(', ') : 'None assigned'}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -250,10 +295,10 @@ export const AdminDashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
                 <MessageSquare className="w-4 h-4 text-blue-600" />
-                <span>Operator Feedback Submissions (Section 24)</span>
+                <span>Operator Feedback Submissions (Section 11)</span>
               </div>
               <button
-                onClick={fetchFeedback}
+                onClick={fetchAdminData}
                 className="p-1.5 rounded-lg bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -310,6 +355,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-[11px]">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <span className="font-bold text-blue-700 block mb-1">RTDB Realtime Endpoints</span>
+              <div>/devices/&#123;deviceId&#125;/commands/&#123;commandId&#125;</div>
               <div>/devices/&#123;deviceId&#125;/currentCommand</div>
               <div>/devices/&#123;deviceId&#125;/heartbeat/lastSeen</div>
               <div>/devices/&#123;deviceId&#125;/gps</div>
@@ -319,6 +365,7 @@ export const AdminDashboard: React.FC = () => {
               <div>/devices/&#123;deviceId&#125;/sensors</div>
               <div>/devices/&#123;deviceId&#125;/telemetry</div>
               <div>/devices/&#123;deviceId&#125;/alerts</div>
+              <div>/commands/&#123;deviceId&#125;/history</div>
               <div>/feedback</div>
             </div>
           </div>

@@ -9,12 +9,23 @@ export interface UserProfile {
   createdAt: number;
   lastLogin: number;
   biometricEnabled?: boolean;
-  authorizedDevices: string[]; // device IDs
+  authorizedDevices: string[]; // device IDs the user owns or has permission to monitor
 }
 
-export type ConnectionStatus = 'ONLINE' | 'OFFLINE' | 'ERROR';
+export type DeviceConnectionState = 'CONNECTED' | 'DISCONNECTED' | 'UNKNOWN' | 'ERROR';
 
-export type SensorStatus = 'ACTIVE' | 'NOT CONNECTED' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
+// Backward compatibility alias
+export type ConnectionStatus = DeviceConnectionState;
+
+export type SensorStatus = 'ACTIVE' | 'NOT_CONNECTED' | 'ERROR' | 'DISABLED' | 'UNKNOWN';
+
+export type CameraStreamState =
+  | 'NOT_CONFIGURED'
+  | 'CONFIGURED_UNVERIFIED'
+  | 'STREAMING'
+  | 'DISCONNECTED'
+  | 'UNAVAILABLE'
+  | 'ERROR';
 
 export type SensorType =
   | 'speed'
@@ -70,7 +81,15 @@ export interface GPSRecord {
   status: 'FIX_ACQUIRED' | 'NO_FIX' | 'DISCONNECTED';
 }
 
-export type CommandAction = 'FORWARD' | 'BACKWARD' | 'LEFT' | 'RIGHT' | 'STOP' | 'EMERGENCY_STOP' | 'LIGHTS_TOGGLE' | 'SPEED_SET';
+export type CommandAction =
+  | 'FORWARD'
+  | 'BACKWARD'
+  | 'LEFT'
+  | 'RIGHT'
+  | 'STOP'
+  | 'EMERGENCY_STOP'
+  | 'LIGHTS_TOGGLE'
+  | 'SPEED_SET';
 
 export interface RoverCommand {
   commandId: string;
@@ -79,7 +98,7 @@ export interface RoverCommand {
   command: CommandAction;
   speedPercentage?: number; // 0 - 100
   timestamp: number;
-  expiresAt: number; // Stale protection (e.g. valid for 1500ms)
+  expiresAt: number; // Stale protection: strictly valid for 1500ms
   status: 'PENDING' | 'EXECUTED' | 'EXPIRED' | 'REJECTED';
   executedAt?: number;
   sourceIp?: string;
@@ -113,17 +132,21 @@ export interface DeviceInfo {
   deviceId: string;
   name: string;
   ownerId: string;
-  status: ConnectionStatus;
+  authorizedUsers: string[];
+  status: DeviceConnectionState;
   firmwareVersion: string;
   lastSeen: number | null;
+  lastHeartbeat: number | null;
+  lastDataUpdate: number | null;
+  lastError?: string | null;
   macAddress?: string;
   ipAddress?: string;
-  hardwareModel: string; // e.g. "ESP32-WROOM-32 Rover Rev 1.0"
+  hardwareModel: string;
   cameraStreamUrl?: string | null;
-  cameraStatus?: 'CONNECTED' | 'NOT CONNECTED' | 'ERROR' | 'UNAVAILABLE';
-  motorStatus?: 'STANDBY' | 'MOVING' | 'STOPPED' | 'ERROR' | 'EMERGENCY_LOCKED';
+  cameraStatus: CameraStreamState;
+  motorStatus?: 'STANDBY' | 'MOVING' | 'STOPPED' | 'ERROR' | 'EMERGENCY_LOCKED' | 'UNKNOWN';
   safetyLock: boolean;
-  commandTimeoutMs: number; // e.g. 1500 ms
+  commandTimeoutMs: number;
 }
 
 export interface SystemLog {
@@ -133,7 +156,7 @@ export interface SystemLog {
   userId?: string;
   level: 'INFO' | 'WARN' | 'ERROR' | 'SECURITY';
   message: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export type FeedbackCategory = 'BUG' | 'SUGGESTION' | 'PROBLEM' | 'FEATURE_REQUEST';
@@ -151,4 +174,3 @@ export interface FeedbackSubmission {
   errorCode?: string | null;
   status: 'NEW' | 'REVIEWED' | 'RESOLVED';
 }
-

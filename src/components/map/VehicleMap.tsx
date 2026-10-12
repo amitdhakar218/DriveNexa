@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export const VehicleMap: React.FC = () => {
-  const { device, liveGps } = useDevice();
+  const { device, liveGps, connectionState } = useDevice();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const vehicleMarkerRef = useRef<L.Marker | null>(null);
@@ -29,13 +29,18 @@ export const VehicleMap: React.FC = () => {
   const [historicalPoints, setHistoricalPoints] = useState<GPSRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+
+  const isConnected = connectionState === 'CONNECTED';
 
   const hasLiveFix = !!(
+    isConnected &&
     liveGps &&
     liveGps.latitude !== null &&
     liveGps.longitude !== null &&
     !isNaN(liveGps.latitude) &&
-    !isNaN(liveGps.longitude)
+    !isNaN(liveGps.longitude) &&
+    liveGps.status === 'FIX_ACQUIRED'
   );
 
   // Initialize or update Leaflet map
@@ -43,36 +48,34 @@ export const VehicleMap: React.FC = () => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      const initialLat = hasLiveFix ? liveGps.latitude! : 14.5995;
-      const initialLng = hasLiveFix ? liveGps.longitude! : 120.9842;
+      // Initialize map with neutral global view if no live fix yet
+      const initialLat = hasLiveFix ? liveGps.latitude! : 20.0;
+      const initialLng = hasLiveFix ? liveGps.longitude! : 0.0;
+      const initialZoom = hasLiveFix ? 16 : 2;
 
       const map = L.map(mapContainerRef.current, {
         center: [initialLat, initialLng],
-        zoom: hasLiveFix ? 16 : 4,
+        zoom: initialZoom,
         zoomControl: false,
       });
 
-      // OpenStreetMap standard clean light tiles for automotive/robotics navigation
-      L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-          attribution: '&copy; OpenStreetMap contributors',
-          maxZoom: 19,
-        }
-      ).addTo(map);
+      // Real OpenStreetMap standard tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map);
 
       mapInstanceRef.current = map;
     }
 
     const map = mapInstanceRef.current;
 
-    // Update vehicle marker if real satellite fix exists
+    // Update vehicle marker ONLY when real satellite fix exists
     if (hasLiveFix) {
       const lat = liveGps.latitude!;
       const lng = liveGps.longitude!;
       const pos: L.LatLngExpression = [lat, lng];
 
-      // Custom high-contrast SVG vehicle icon with heading rotation
       const heading = liveGps.heading || 0;
       const vehicleIcon = L.divIcon({
         className: 'vehicle-marker-icon',
@@ -90,9 +93,10 @@ export const VehicleMap: React.FC = () => {
         vehicleMarkerRef.current = L.marker(pos, { icon: vehicleIcon }).addTo(map);
         vehicleMarkerRef.current.bindPopup(`
           <div class="p-1 text-slate-900 font-sans text-xs">
-            <strong class="text-blue-600">${device?.name || 'NexaRover-01'}</strong><br/>
+            <strong class="text-blue-600">${device?.name || 'Rover'}</strong><br/>
             Speed: ${liveGps.speed ?? 0} km/h<br/>
-            Accuracy: ±${liveGps.accuracy ?? 2.5}m
+            Accuracy: ±${liveGps.accuracy ?? 2.5}m<br/>
+            Fix Time: ${new Date(liveGps.timestamp).toLocaleTimeString()}
           </div>
         `);
       } else {
@@ -102,6 +106,7 @@ export const VehicleMap: React.FC = () => {
 
       map.panTo(pos);
     } else {
+      // Remove marker if no satellite fix
       if (vehicleMarkerRef.current) {
         vehicleMarkerRef.current.remove();
         vehicleMarkerRef.current = null;
@@ -111,14 +116,13 @@ export const VehicleMap: React.FC = () => {
 
   // Load historical GPS points if requested
   const handleToggleHistory = async () => {
+    if (!device) return;
+
     if (!showHistory) {
       setLoadingHistory(true);
+      setHistoryNotice(null);
       const now = Date.now();
-      const points = await fetchHistoricalGPS(
-        device?.deviceId || 'ROVER-ESP32-01',
-        now - 24 * 60 * 60 * 1000,
-        now
-      );
+      const points = await fetchHistoricalGPS(device.deviceId, now - 24 * 60 * 60 * 1000, now);
       setHistoricalPoints(points);
 
       if (mapInstanceRef.current && points.length > 1) {
@@ -137,6 +141,9 @@ export const VehicleMap: React.FC = () => {
         }).addTo(mapInstanceRef.current);
 
         mapInstanceRef.current.fitBounds(routePolylineRef.current.getBounds());
+      } else {
+        setHistoryNotice('No historical route data recorded for this time range.');
+        setTimeout(() => setHistoryNotice(null), 4000);
       }
       setLoadingHistory(false);
       setShowHistory(true);
@@ -167,19 +174,23 @@ export const VehicleMap: React.FC = () => {
             {hasLiveFix ? (
               `${liveGps.latitude!.toFixed(6)}, ${liveGps.longitude!.toFixed(6)}`
             ) : (
-              <span className="text-amber-700">Unavailable</span>
+              <span className="text-amber-700 font-sans">No GPS data available</span>
             )}
           </div>
         </div>
 
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
           <span className="text-[10px] text-slate-500 uppercase font-bold block">
-            GPS Signal & Fix
+            GPS Signal & Satellite Fix
           </span>
           <div className="mt-1 flex items-center gap-1.5 text-xs font-bold">
             <Radio className="w-3.5 h-3.5 text-blue-600" />
             <span className={hasLiveFix ? 'text-emerald-700' : 'text-amber-700'}>
-              {hasLiveFix ? '3D Satellite Fix' : 'GPS Not Connected'}
+              {hasLiveFix
+                ? '3D Satellite Fix Acquired'
+                : connectionState === 'DISCONNECTED'
+                ? 'Rover Disconnected'
+                : 'Waiting for Satellite Fix'}
             </span>
           </div>
         </div>
@@ -190,9 +201,9 @@ export const VehicleMap: React.FC = () => {
           </span>
           <div className="mt-1 text-xs font-mono font-bold text-slate-800">
             {hasLiveFix ? (
-              `${liveGps.heading ?? 0}° • ${liveGps.speed ?? 0} km/h`
+              `${liveGps.heading !== null && liveGps.heading !== undefined ? `${liveGps.heading}°` : '—'} • ${liveGps.speed !== null && liveGps.speed !== undefined ? `${liveGps.speed} km/h` : '0 km/h'}`
             ) : (
-              <span className="text-slate-400">No telemetry</span>
+              <span className="text-slate-400 font-sans">Unavailable</span>
             )}
           </div>
         </div>
@@ -205,11 +216,17 @@ export const VehicleMap: React.FC = () => {
             {hasLiveFix && liveGps.accuracy ? (
               `±${liveGps.accuracy.toFixed(1)} meters`
             ) : (
-              <span className="text-slate-400">Unavailable</span>
+              <span className="text-slate-400 font-sans">Unavailable</span>
             )}
           </div>
         </div>
       </div>
+
+      {historyNotice && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+          {historyNotice}
+        </div>
+      )}
 
       {/* Map Canvas & Floating Controls */}
       <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-200/90 shadow-sm bg-slate-100">
@@ -235,17 +252,18 @@ export const VehicleMap: React.FC = () => {
             onClick={handleCenter}
             disabled={!hasLiveFix}
             className="p-2.5 rounded-xl bg-white/95 hover:bg-white text-blue-600 border border-slate-200 shadow-sm disabled:opacity-40 cursor-pointer"
-            title="Center Rover"
+            title="Center Vehicle Marker"
           >
             <Crosshair className="w-4 h-4" />
           </button>
           <button
             onClick={handleToggleHistory}
+            disabled={!device}
             className={`p-2.5 rounded-xl border shadow-sm cursor-pointer transition ${
               showHistory
                 ? 'bg-blue-600 text-white border-blue-700 font-bold'
                 : 'bg-white/95 text-slate-800 hover:bg-white border-slate-200'
-            }`}
+            } disabled:opacity-40`}
             title="Toggle Real Route History"
           >
             <History className="w-4 h-4" />
@@ -261,30 +279,30 @@ export const VehicleMap: React.FC = () => {
               </div>
               <div>
                 <strong className="text-slate-900 block font-bold">
-                  GPS Hardware Not Connected / Awaiting Satellite Fix
+                  No GPS data available — Waiting for Satellite Fix
                 </strong>
                 <p className="text-slate-600 text-[11px] mt-0.5">
-                  The u-blox NEO-6M/NEO-8M GPS module has not transmitted valid coordinates to Firebase yet.
-                  Live positioning and route history will automatically plot once real physical lock is established.
+                  The u-blox NEO-6M/NEO-8M GPS module has not transmitted valid coordinates to Firebase.
+                  The vehicle position marker will only appear when physical satellites provide a real lock.
                 </p>
               </div>
             </div>
 
             <div className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg shrink-0">
-              RX2: GPIO16 | TX2: GPIO17
+              Interface: UART Serial (RX2 / TX2)
             </div>
           </div>
         )}
       </div>
 
-      {/* GPS Hardware Architecture Details */}
+      {/* GPS Architecture Notes */}
       <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm text-xs text-slate-700">
         <div className="flex items-center gap-2 font-bold text-blue-900 mb-2">
           <Cpu className="w-4 h-4 text-blue-600" />
-          <span>Real-time GPS Tracking Architecture (Section 14 & 17)</span>
+          <span>Real-time GPS Tracking Architecture (Section 7)</span>
         </div>
         <p className="text-[11px] text-slate-500 leading-relaxed">
-          The tracking pipeline operates as: <strong>NEO-6M GPS Module → ESP32 TinyGPS++ parser → Firebase RTDB/Firestore → Leaflet Map Engine</strong>.
+          The tracking pipeline operates as: <strong>NEO-6M GPS Module → ESP32 TinyGPS++ parser → Firebase RTDB/Firestore → Map Engine</strong>.
           No fake coordinates or simulated vehicle positions are generated. Only real NMEA sentence readings from physical satellites are mapped.
         </p>
       </div>

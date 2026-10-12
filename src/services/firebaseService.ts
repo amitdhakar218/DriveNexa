@@ -5,58 +5,57 @@ import {
   getDocs,
   setDoc,
   updateDoc,
-  addDoc,
   query,
   where,
   orderBy,
   limit,
   onSnapshot,
-  Timestamp,
 } from 'firebase/firestore';
 import {
   ref as rtdbRef,
   set as rtdbSet,
-  get as rtdbGet,
-  push as rtdbPush,
   onValue,
   off,
-  serverTimestamp as rtdbServerTimestamp,
 } from 'firebase/database';
 import { db, rtdb } from '../config/firebase';
 import {
   DeviceInfo,
   SensorDefinition,
+  SensorStatus,
   TelemetryRecord,
   GPSRecord,
   RoverCommand,
   SystemAlert,
-  UserProfile,
-  SensorStatus,
-  ConnectionStatus,
-  SystemLog,
+  DeviceConnectionState,
+  FeedbackSubmission,
 } from '../types';
 
 /**
- * Helper to determine device online status based on real heartbeat timestamp
+ * Determine device online status based on real hardware heartbeat timestamp
+ * CONNECTED: Device transmitted heartbeat within 15 seconds
+ * DISCONNECTED: Heartbeat missing or exceeded 15 seconds
+ * UNKNOWN: No heartbeat ever recorded
  */
-export function calculateDeviceStatus(lastSeen: number | null): ConnectionStatus {
-  if (!lastSeen) return 'OFFLINE';
+export function calculateDeviceStatus(lastSeen: number | null): DeviceConnectionState {
+  if (!lastSeen) return 'UNKNOWN';
   const now = Date.now();
-  const diffSec = (now - lastSeen) / 1000;
-  if (diffSec <= 15) return 'ONLINE';
-  if (diffSec <= 60) return 'OFFLINE';
-  return 'OFFLINE';
+  // Standardize timestamp if reported in seconds instead of milliseconds
+  const lastSeenMs = lastSeen < 10000000000 ? lastSeen * 1000 : lastSeen;
+  const diffSec = (now - lastSeenMs) / 1000;
+  if (diffSec >= 0 && diffSec <= 15) return 'CONNECTED';
+  return 'DISCONNECTED';
 }
 
 /**
- * Standard default sensor registry template for when a new device is enrolled
+ * Standard hardware sensor template for newly registered vehicle devices.
+ * All initial values are strictly null and NOT_CONNECTED.
  */
 export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
   {
     id: 'sens_speed_01',
-    name: 'Hall Effect Wheel Speed Sensor',
+    name: 'Wheel Speed Sensor (Hall / Optical)',
     type: 'speed',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: 'km/h',
@@ -68,7 +67,7 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
     id: 'sens_temp_01',
     name: 'Motor Driver & Battery Temperature (DS18B20)',
     type: 'temperature',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: '°C',
@@ -81,7 +80,7 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
     id: 'sens_batt_01',
     name: 'Li-Ion 2S/3S Battery Voltage Monitor',
     type: 'battery',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: '%',
@@ -94,7 +93,7 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
     id: 'sens_gps_01',
     name: 'u-blox NEO-6M / NEO-8M GPS Module',
     type: 'gps',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: 'lat/lng',
@@ -106,7 +105,7 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
     id: 'sens_dist_01',
     name: 'Front Ultrasonic Obstacle Sensor (HC-SR04)',
     type: 'distance',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: 'cm',
@@ -118,7 +117,7 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
     id: 'sens_mpu_01',
     name: '6-Axis IMU Accelerometer/Gyroscope (MPU6050)',
     type: 'accelerometer',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: 'g / °/s',
@@ -128,9 +127,9 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
   },
   {
     id: 'sens_crash_01',
-    name: 'Collision & Impact Detection Threshold',
+    name: 'Collision & Impact Detection Switch',
     type: 'crash',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: 'g-force',
@@ -140,9 +139,9 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
   },
   {
     id: 'sens_cam_01',
-    name: 'ESP32-CAM / OV2640 Live Stream Module',
+    name: 'ESP32-CAM / OV2640 Module',
     type: 'camera',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: false,
     currentValue: null,
     unit: 'fps',
@@ -152,9 +151,9 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
   },
   {
     id: 'sens_motor_01',
-    name: 'L298N / TB6612FNG Dual H-Bridge Motor Driver',
+    name: 'L298N Dual H-Bridge Motor Driver',
     type: 'motor',
-    status: 'NOT CONNECTED',
+    status: 'NOT_CONNECTED',
     enabled: true,
     currentValue: null,
     unit: 'PWM %',
@@ -165,103 +164,158 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
 ];
 
 /**
- * Get or register the primary rover device in Firestore
+ * Fetch all devices authorized for a user
+ * Queries devices owned by the user or where the user is in authorizedUsers
  */
-export async function initializePrimaryDevice(ownerId: string): Promise<DeviceInfo> {
-  const deviceId = 'ROVER-ESP32-01';
-  const deviceRef = doc(db, 'devices', deviceId);
-
+export async function fetchUserDevices(userId: string): Promise<DeviceInfo[]> {
   try {
-    const snap = await getDoc(deviceRef);
-    if (snap.exists()) {
-      return snap.data() as DeviceInfo;
-    }
+    const devicesColl = collection(db, 'devices');
+    const qOwner = query(devicesColl, where('ownerId', '==', userId));
+    const snapOwner = await getDocs(qOwner);
 
-    const newDevice: DeviceInfo = {
-      deviceId,
-      name: 'NexaRover-01 (ESP32 Testbed)',
-      ownerId,
-      status: 'OFFLINE',
-      firmwareVersion: 'v1.0.4-hw-ready',
-      lastSeen: null,
-      hardwareModel: 'ESP32-WROOM-32 4WD Robotic Car',
-      cameraStreamUrl: null,
-      cameraStatus: 'NOT CONNECTED',
-      motorStatus: 'STANDBY',
-      safetyLock: false,
-      commandTimeoutMs: 1500,
-    };
+    const devicesMap = new Map<string, DeviceInfo>();
+    snapOwner.forEach((d) => {
+      devicesMap.set(d.id, d.data() as DeviceInfo);
+    });
 
-    await setDoc(deviceRef, newDevice);
+    const qAuth = query(devicesColl, where('authorizedUsers', 'array-contains', userId));
+    const snapAuth = await getDocs(qAuth);
+    snapAuth.forEach((d) => {
+      devicesMap.set(d.id, d.data() as DeviceInfo);
+    });
 
-    // Initialize the default sensor specifications
-    for (const sensor of DEFAULT_HARDWARE_SENSORS) {
-      await setDoc(doc(db, 'devices', deviceId, 'sensors', sensor.id), {
-        ...sensor,
-        deviceId,
-      });
-    }
-
-    return newDevice;
+    return Array.from(devicesMap.values());
   } catch (err) {
-    console.warn('Could not initialize primary device in Firestore (using offline container mode):', err);
-    return {
-      deviceId,
-      name: 'NexaRover-01 (ESP32 Testbed)',
-      ownerId,
-      status: 'OFFLINE',
-      firmwareVersion: 'v1.0.4-hw-ready',
-      lastSeen: null,
-      hardwareModel: 'ESP32-WROOM-32 4WD Robotic Car',
-      cameraStreamUrl: null,
-      cameraStatus: 'NOT CONNECTED',
-      motorStatus: 'STANDBY',
-      safetyLock: false,
-      commandTimeoutMs: 1500,
-    };
+    console.warn('Error fetching user devices from Firestore:', err);
+    return [];
   }
+}
+
+/**
+ * Fetch a single device by ID and verify authorization
+ */
+export async function getDeviceById(deviceId: string): Promise<DeviceInfo | null> {
+  try {
+    const devDoc = doc(db, 'devices', deviceId);
+    const snap = await getDoc(devDoc);
+    if (!snap.exists()) return null;
+    return snap.data() as DeviceInfo;
+  } catch (err) {
+    console.warn(`Error getting device ${deviceId}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Register or claim a new rover device
+ * Ensures clean ownership and populates real hardware sensor definitions
+ */
+export async function registerDevice(
+  userId: string,
+  deviceId: string,
+  name: string,
+  hardwareModel: string = 'ESP32-WROOM-32 4WD Robotic Car'
+): Promise<DeviceInfo> {
+  const sanitizedId = deviceId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  if (!sanitizedId) {
+    throw new Error('Device ID must contain valid alphanumeric characters.');
+  }
+
+  const deviceRef = doc(db, 'devices', sanitizedId);
+  const snap = await getDoc(deviceRef);
+
+  if (snap.exists()) {
+    const existing = snap.data() as DeviceInfo;
+    // Check if user is already owner or authorized
+    if (existing.ownerId !== userId && !existing.authorizedUsers?.includes(userId)) {
+      throw new Error(`Device ID "${sanitizedId}" is already claimed by another operator.`);
+    }
+    return existing;
+  }
+
+  const newDevice: DeviceInfo = {
+    deviceId: sanitizedId,
+    name: name.trim() || sanitizedId,
+    ownerId: userId,
+    authorizedUsers: [userId],
+    status: 'UNKNOWN',
+    firmwareVersion: 'v1.0.4-hw-ready',
+    lastSeen: null,
+    lastHeartbeat: null,
+    lastDataUpdate: null,
+    hardwareModel,
+    cameraStreamUrl: null,
+    cameraStatus: 'NOT_CONFIGURED',
+    motorStatus: 'UNKNOWN',
+    safetyLock: false,
+    commandTimeoutMs: 1500,
+  };
+
+  await setDoc(deviceRef, newDevice);
+
+  // Initialize standard hardware sensors (all NOT_CONNECTED, value: null)
+  for (const sensor of DEFAULT_HARDWARE_SENSORS) {
+    await setDoc(doc(db, 'devices', sanitizedId, 'sensors', sensor.id), {
+      ...sensor,
+      deviceId: sanitizedId,
+    });
+  }
+
+  return newDevice;
 }
 
 /**
  * Subscribe to real-time device updates from Firestore & RTDB
  */
 export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) => void) {
-  // Listen to Firestore doc
   const devDoc = doc(db, 'devices', deviceId);
-  const unsubFs = onSnapshot(devDoc, (snapshot) => {
-    if (snapshot.exists()) {
-      const data = snapshot.data() as DeviceInfo;
-      onUpdate({
-        ...data,
-        status: calculateDeviceStatus(data.lastSeen),
-      });
+  const unsubFs = onSnapshot(
+    devDoc,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as DeviceInfo;
+        onUpdate({
+          ...data,
+          status: calculateDeviceStatus(data.lastSeen),
+        });
+      }
+    },
+    (err) => {
+      console.warn('Firestore device listener notice:', err.message);
     }
-  }, (err) => {
-    console.warn('Firestore device listener error:', err.message);
-  });
+  );
 
-  // Also listen to RTDB live heartbeat if connected
+  // RTDB live heartbeat listener
   const rtdbDevRef = rtdbRef(rtdb, `devices/${deviceId}/heartbeat`);
-  const unsubRtdb = onValue(rtdbDevRef, (snapshot) => {
-    const val = snapshot.val();
-    if (val && typeof val.lastSeen === 'number') {
-      onUpdate({
-        deviceId,
-        name: val.name || 'NexaRover-01',
-        ownerId: val.ownerId || '',
-        status: calculateDeviceStatus(val.lastSeen),
-        firmwareVersion: val.firmwareVersion || 'v1.0.4',
-        lastSeen: val.lastSeen,
-        hardwareModel: val.hardwareModel || 'ESP32 4WD Platform',
-        cameraStatus: val.cameraStatus || 'NOT CONNECTED',
-        motorStatus: val.motorStatus || 'STANDBY',
-        safetyLock: !!val.safetyLock,
-        commandTimeoutMs: val.commandTimeoutMs || 1500,
-      });
+  const unsubRtdb = onValue(
+    rtdbDevRef,
+    (snapshot) => {
+      const val = snapshot.val();
+      if (val && typeof val.lastSeen === 'number') {
+        onUpdate({
+          deviceId,
+          name: val.name || deviceId,
+          ownerId: val.ownerId || '',
+          authorizedUsers: val.authorizedUsers || [],
+          status: calculateDeviceStatus(val.lastSeen),
+          firmwareVersion: val.firmwareVersion || 'v1.0.4',
+          lastSeen: val.lastSeen,
+          lastHeartbeat: val.lastSeen,
+          lastDataUpdate: val.lastDataUpdate || val.lastSeen,
+          lastError: val.lastError || null,
+          hardwareModel: val.hardwareModel || 'ESP32 4WD Platform',
+          cameraStreamUrl: val.cameraStreamUrl || null,
+          cameraStatus: val.cameraStatus || 'NOT_CONFIGURED',
+          motorStatus: val.motorStatus || 'UNKNOWN',
+          safetyLock: !!val.safetyLock,
+          commandTimeoutMs: val.commandTimeoutMs || 1500,
+        });
+      }
+    },
+    (err) => {
+      console.warn('RTDB device heartbeat listener note:', err.message);
     }
-  }, (err) => {
-    console.warn('RTDB device heartbeat listener note:', err.message);
-  });
+  );
 
   return () => {
     unsubFs();
@@ -270,27 +324,67 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
 }
 
 /**
- * Subscribe to sensors of a device
+ * Subscribe to sensors of a device (Firestore sensor config + RTDB live telemetry)
  */
-export function subscribeToSensors(deviceId: string, onUpdate: (sensors: SensorDefinition[]) => void) {
-  const sensorsColl = collection(db, 'devices', deviceId, 'sensors');
-  const unsub = onSnapshot(sensorsColl, (snap) => {
-    const list: SensorDefinition[] = [];
-    snap.forEach((d) => {
-      list.push(d.data() as SensorDefinition);
-    });
-    if (list.length > 0) {
-      onUpdate(list);
-    } else {
-      // Fallback to default list with honest NOT CONNECTED status
-      onUpdate(DEFAULT_HARDWARE_SENSORS.map(s => ({ ...s, deviceId })));
-    }
-  }, (err) => {
-    console.warn('Firestore sensor listener notice:', err.message);
-    onUpdate(DEFAULT_HARDWARE_SENSORS.map(s => ({ ...s, deviceId })));
-  });
+export function subscribeToSensors(
+  deviceId: string,
+  onUpdate: (sensors: SensorDefinition[]) => void
+) {
+  let currentSensors: SensorDefinition[] = DEFAULT_HARDWARE_SENSORS.map((s) => ({ ...s, deviceId }));
 
-  return unsub;
+  const sensorsColl = collection(db, 'devices', deviceId, 'sensors');
+  const unsubFs = onSnapshot(
+    sensorsColl,
+    (snap) => {
+      const list: SensorDefinition[] = [];
+      snap.forEach((d) => {
+        list.push(d.data() as SensorDefinition);
+      });
+      if (list.length > 0) {
+        currentSensors = list;
+      } else {
+        currentSensors = DEFAULT_HARDWARE_SENSORS.map((s) => ({ ...s, deviceId }));
+      }
+      onUpdate(currentSensors);
+    },
+    (err) => {
+      console.warn('Firestore sensor listener notice:', err.message);
+      onUpdate(currentSensors);
+    }
+  );
+
+  // RTDB live telemetry listener (ESP32 telemetry broadcast: /devices/{deviceId}/telemetry)
+  const rtdbTelemRef = rtdbRef(rtdb, `devices/${deviceId}/telemetry`);
+  const unsubRtdb = onValue(
+    rtdbTelemRef,
+    (snap) => {
+      const val = snap.val();
+      if (val && typeof val === 'object') {
+        const updated = currentSensors.map((sensor) => {
+          if (val[sensor.type] !== undefined) {
+            const numVal = typeof val[sensor.type] === 'number' ? val[sensor.type] : Number(val[sensor.type]);
+            return {
+              ...sensor,
+              currentValue: isNaN(numVal) ? null : numVal,
+              status: isNaN(numVal) ? 'NOT_CONNECTED' : ('ACTIVE' as SensorStatus),
+              lastUpdate: val.timestamp || Date.now(),
+            };
+          }
+          return sensor;
+        });
+        currentSensors = updated;
+        onUpdate(updated);
+      }
+    },
+    (err) => {
+      console.warn('RTDB live telemetry listener note:', err.message);
+    }
+  );
+
+  return () => {
+    unsubFs();
+    off(rtdbTelemRef);
+  };
 }
 
 /**
@@ -300,12 +394,12 @@ export async function toggleSensorState(deviceId: string, sensorId: string, enab
   const sensorDoc = doc(db, 'devices', deviceId, 'sensors', sensorId);
   await updateDoc(sensorDoc, {
     enabled,
-    status: enabled ? 'NOT CONNECTED' : 'DISABLED',
+    status: enabled ? 'NOT_CONNECTED' : 'DISABLED',
   });
 }
 
 /**
- * Add a new sensor definition (Future Sensor Plug-in Architecture)
+ * Register a new sensor definition (Future Sensor Plug-in Architecture)
  */
 export async function registerNewSensor(sensor: SensorDefinition) {
   const sensorDoc = doc(db, 'devices', sensor.deviceId, 'sensors', sensor.id);
@@ -314,7 +408,8 @@ export async function registerNewSensor(sensor: SensorDefinition) {
 
 /**
  * Send Remote Command to Rover (FORWARD, BACKWARD, LEFT, RIGHT, STOP, EMERGENCY_STOP)
- * Includes expiration timestamp for stale command protection!
+ * Path: commands/{deviceId}/{commandId} and devices/{deviceId}/commands/{commandId}
+ * Commands strictly expire after 1500ms.
  */
 export async function sendRoverCommand(
   deviceId: string,
@@ -324,7 +419,7 @@ export async function sendRoverCommand(
 ): Promise<RoverCommand> {
   const now = Date.now();
   const commandId = `cmd_${now}_${Math.random().toString(36).substring(2, 7)}`;
-  const expiresAt = now + 1500; // Strictly valid for 1.5 seconds (command expiration requirement)
+  const expiresAt = now + 1500; // Strictly valid for 1.5 seconds
 
   const commandPayload: RoverCommand = {
     commandId,
@@ -337,34 +432,35 @@ export async function sendRoverCommand(
     status: 'PENDING',
   };
 
-  // 1. Write to RTDB for instantaneous ESP32 pickup via Firebase RTDB stream
+  // 1. Write to RTDB queue for instantaneous low-latency pickup by ESP32
   try {
-    const cmdRtdbRef = rtdbRef(rtdb, `devices/${deviceId}/currentCommand`);
-    await rtdbSet(cmdRtdbRef, commandPayload);
+    const cmdQueueRef = rtdbRef(rtdb, `devices/${deviceId}/commands/${commandId}`);
+    await rtdbSet(cmdQueueRef, commandPayload);
+    const cmdCurrentRef = rtdbRef(rtdb, `devices/${deviceId}/currentCommand`);
+    await rtdbSet(cmdCurrentRef, commandPayload);
   } catch (rtdbErr) {
     console.warn('RTDB command dispatch error:', rtdbErr);
   }
 
-  // 2. Also log to Firestore commands collection for audit trail
+  // 2. Also log to Firestore commands collection for audit trail: commands/{deviceId}/{commandId}
   try {
-    const cmdFsRef = doc(db, 'devices', deviceId, 'commands', commandId);
+    const cmdFsRef = doc(db, 'commands', deviceId, 'history', commandId);
     await setDoc(cmdFsRef, commandPayload);
   } catch (fsErr) {
     console.warn('Firestore command log error:', fsErr);
   }
 
-  // 3. If EMERGENCY_STOP, trigger safety lock on device
+  // 3. If EMERGENCY_STOP, trigger safety lock in Firestore & alert
   if (command === 'EMERGENCY_STOP' || command === 'STOP') {
     try {
       const devDoc = doc(db, 'devices', deviceId);
       await updateDoc(devDoc, {
-        motorStatus: command === 'EMERGENCY_STOP' ? 'EMERGENCY_LOCKED' : 'STOPPED',
         safetyLock: command === 'EMERGENCY_STOP',
       });
       await logSystemAlert({
         id: `alert_${now}`,
         deviceId,
-        title: command === 'EMERGENCY_STOP' ? 'EMERGENCY STOP ENGAGED' : 'Rover Stopped',
+        title: command === 'EMERGENCY_STOP' ? 'EMERGENCY STOP ENGAGED' : 'Rover Stop Dispatched',
         message: `Remote operator ${userId} issued ${command}.`,
         eventType: 'emergency_stop',
         severity: command === 'EMERGENCY_STOP' ? 'EMERGENCY' : 'WARNING',
@@ -372,7 +468,7 @@ export async function sendRoverCommand(
         acknowledged: false,
       });
     } catch (e) {
-      console.warn('Emergency stop broadcast error:', e);
+      console.warn('Emergency stop broadcast notice:', e);
     }
   }
 
@@ -407,7 +503,7 @@ export async function fetchHistoricalTelemetry(
     });
     return records;
   } catch (err) {
-    console.warn('Historical telemetry query error (no records or index awaiting creation):', err);
+    console.warn('Historical telemetry query note (empty or awaiting records):', err);
     return [];
   }
 }
@@ -436,7 +532,7 @@ export async function fetchHistoricalGPS(
     });
     return records;
   } catch (err) {
-    console.warn('GPS query error:', err);
+    console.warn('GPS query note:', err);
     return [];
   }
 }
@@ -446,28 +542,46 @@ export async function fetchHistoricalGPS(
  */
 export function subscribeToLiveGPS(deviceId: string, onUpdate: (gps: GPSRecord | null) => void) {
   const liveGpsRef = rtdbRef(rtdb, `devices/${deviceId}/gps`);
-  const unsub = onValue(liveGpsRef, (snap) => {
-    const val = snap.val();
-    if (val && typeof val.latitude === 'number' && typeof val.longitude === 'number') {
-      onUpdate({
-        deviceId,
-        timestamp: val.timestamp || Date.now(),
-        latitude: val.latitude,
-        longitude: val.longitude,
-        accuracy: val.accuracy || 2.5,
-        speed: val.speed || 0,
-        heading: val.heading || 0,
-        status: 'FIX_ACQUIRED',
-      });
-    } else {
+  const unsub = onValue(
+    liveGpsRef,
+    (snap) => {
+      const val = snap.val();
+      if (val && typeof val.latitude === 'number' && typeof val.longitude === 'number') {
+        onUpdate({
+          deviceId,
+          timestamp: val.timestamp || Date.now(),
+          latitude: val.latitude,
+          longitude: val.longitude,
+          accuracy: val.accuracy || 2.5,
+          speed: val.speed || 0,
+          heading: val.heading || 0,
+          status: 'FIX_ACQUIRED',
+        });
+      } else {
+        onUpdate(null);
+      }
+    },
+    (err) => {
+      console.warn('RTDB live GPS listener note:', err.message);
       onUpdate(null);
     }
-  }, (err) => {
-    console.warn('RTDB live GPS listener note:', err.message);
-    onUpdate(null);
-  });
+  );
 
   return () => off(liveGpsRef);
+}
+
+/**
+ * Update camera stream URL
+ * IMPORTANT: Saving a URL does NOT mean the camera is connected.
+ * Status is set to CONFIGURED_UNVERIFIED until actual stream frames are received.
+ */
+export async function updateCameraStreamUrl(deviceId: string, url: string) {
+  const trimmed = url.trim();
+  const devDoc = doc(db, 'devices', deviceId);
+  await updateDoc(devDoc, {
+    cameraStreamUrl: trimmed.length > 0 ? trimmed : null,
+    cameraStatus: trimmed.length > 0 ? 'CONFIGURED_UNVERIFIED' : 'NOT_CONFIGURED',
+  });
 }
 
 /**
@@ -485,16 +599,20 @@ export async function logSystemAlert(alert: SystemAlert) {
 export function subscribeToAlerts(deviceId: string, onUpdate: (alerts: SystemAlert[]) => void) {
   const alertsColl = collection(db, 'devices', deviceId, 'alerts');
   const q = query(alertsColl, orderBy('timestamp', 'desc'), limit(50));
-  const unsub = onSnapshot(q, (snap) => {
-    const list: SystemAlert[] = [];
-    snap.forEach((d) => {
-      list.push(d.data() as SystemAlert);
-    });
-    onUpdate(list);
-  }, (err) => {
-    console.warn('Alerts listener note:', err.message);
-    onUpdate([]);
-  });
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      const list: SystemAlert[] = [];
+      snap.forEach((d) => {
+        list.push(d.data() as SystemAlert);
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Alerts listener note:', err.message);
+      onUpdate([]);
+    }
+  );
   return unsub;
 }
 
@@ -514,14 +632,13 @@ export async function resetEmergencyLock(deviceId: string) {
   const devDoc = doc(db, 'devices', deviceId);
   await updateDoc(devDoc, {
     safetyLock: false,
-    motorStatus: 'STANDBY',
   });
 }
 
 /**
- * Submit User Feedback with automatic device & environment metadata (Section 24)
+ * Submit User Feedback with metadata
  */
-export async function submitUserFeedback(feedback: import('../types').FeedbackSubmission) {
+export async function submitUserFeedback(feedback: FeedbackSubmission) {
   try {
     const feedbackDoc = doc(db, 'feedback', feedback.id);
     await setDoc(feedbackDoc, feedback);
@@ -535,17 +652,16 @@ export async function submitUserFeedback(feedback: import('../types').FeedbackSu
 /**
  * Fetch feedback submissions for Admin Review
  */
-export async function fetchAllFeedback(): Promise<import('../types').FeedbackSubmission[]> {
+export async function fetchAllFeedback(): Promise<FeedbackSubmission[]> {
   try {
     const coll = collection(db, 'feedback');
     const q = query(coll, orderBy('timestamp', 'desc'), limit(50));
     const snap = await getDocs(q);
-    const list: import('../types').FeedbackSubmission[] = [];
-    snap.forEach((d) => list.push(d.data() as import('../types').FeedbackSubmission));
+    const list: FeedbackSubmission[] = [];
+    snap.forEach((d) => list.push(d.data() as FeedbackSubmission));
     return list;
   } catch (err) {
     console.warn('Feedback query note:', err);
     return [];
   }
 }
-

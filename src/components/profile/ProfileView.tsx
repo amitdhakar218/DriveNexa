@@ -73,7 +73,7 @@ export const ProfileView: React.FC = () => {
         category: feedbackCategory,
         title: feedbackTitle.trim(),
         description: feedbackText.trim(),
-        deviceId: device?.deviceId || 'ROVER-ESP32-01',
+        deviceId: device?.deviceId || 'UNASSIGNED',
         appVersion: 'v1.2.0-prod',
         timestamp: now,
         status: 'NEW',
