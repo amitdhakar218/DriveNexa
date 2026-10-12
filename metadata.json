@@ -1,0 +1,6 @@
+{
+  "name": "DriveNexa - Smart Vehicle Safety & Rover Platform",
+  "description": "Production-oriented smart vehicle safety, telemetry monitoring, sensor health, and remote rover control platform with real-time Firebase backend.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
