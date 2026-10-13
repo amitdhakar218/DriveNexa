@@ -16,6 +16,7 @@ import {
   subscribeToSensors,
   subscribeToLiveGPS,
   subscribeToAlerts,
+  subscribeToCommandAck,
   sendRoverCommand as apiSendRoverCommand,
   toggleSensorState,
   registerNewSensor,
@@ -23,6 +24,14 @@ import {
   acknowledgeAlert as apiAcknowledgeAlert,
   resetEmergencyLock as apiResetEmergencyLock,
 } from '../services/firebaseService';
+
+export interface CommandAckPayload {
+  commandId: string;
+  status: 'QUEUED' | 'PENDING' | 'ACKNOWLEDGED' | 'EXECUTING' | 'EXECUTED' | 'EXPIRED' | 'REJECTED';
+  timestamp: number;
+  motorStatus?: string;
+  details?: string;
+}
 
 interface DeviceContextType {
   activeDeviceId: string | null;
@@ -37,6 +46,7 @@ interface DeviceContextType {
   lastHeartbeat: number | null;
   lastDataUpdate: number | null;
   lastKnownError: string | null;
+  lastCommandAck: CommandAckPayload | null;
   sendCommand: (command: RoverCommand['command'], speed?: number) => Promise<RoverCommand>;
   emergencyStop: () => Promise<void>;
   resetEmergency: () => Promise<void>;
@@ -61,6 +71,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [loadingDevice, setLoadingDevice] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const [lastCommandAck, setLastCommandAck] = useState<CommandAckPayload | null>(null);
 
   // Hardware Heartbeat Watchdog timer (every 1 second)
   useEffect(() => {
@@ -149,11 +160,16 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setAlerts(updatedAlerts);
     });
 
+    const unsubAck = subscribeToCommandAck(activeDeviceId, (ack) => {
+      setLastCommandAck(ack);
+    });
+
     return () => {
       unsubDevice();
       unsubSensors();
       unsubGps();
       unsubAlerts();
+      unsubAck();
     };
   }, [activeDeviceId, user]);
 
@@ -266,6 +282,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         lastHeartbeat,
         lastDataUpdate,
         lastKnownError,
+        lastCommandAck,
         sendCommand,
         emergencyStop,
         resetEmergency,

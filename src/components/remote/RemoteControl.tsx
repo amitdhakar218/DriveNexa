@@ -19,7 +19,15 @@ import {
 } from 'lucide-react';
 
 export const RemoteControl: React.FC = () => {
-  const { device, sendCommand, emergencyStop, resetEmergency, connectionState, activeDeviceId } = useDevice();
+  const {
+    device,
+    sendCommand,
+    emergencyStop,
+    resetEmergency,
+    connectionState,
+    activeDeviceId,
+    lastCommandAck,
+  } = useDevice();
   const { user, userProfile } = useAuth();
 
   const [isArmingUnlocked, setIsArmingUnlocked] = useState(false);
@@ -27,11 +35,30 @@ export const RemoteControl: React.FC = () => {
   const [speedPercentage, setSpeedPercentage] = useState<number>(50);
   const [lastSentCommand, setLastSentCommand] = useState<RoverCommand | null>(null);
   const [activeButton, setActiveButton] = useState<CommandAction | null>(null);
-  const [commandStatusMsg, setCommandStatusMsg] = useState<string>('Standby — Safety Watchdog Active');
+  const [commandStatusMsg, setCommandStatusMsg] = useState<string>('Standby — Safety Watchdog Active (1500ms auto-stop)');
+  const [ackState, setAckState] = useState<'IDLE' | 'QUEUED' | 'ACKNOWLEDGED' | 'EXECUTED' | 'TIMEOUT'>('IDLE');
 
   const isConnected = connectionState === 'CONNECTED';
   const isEmergencyLocked = !!device?.safetyLock;
   const isMovementDisabled = !isConnected || isEmergencyLocked || !isArmingUnlocked || !activeDeviceId;
+
+  // React to hardware ACK from ESP32
+  useEffect(() => {
+    if (!lastCommandAck || !lastSentCommand) return;
+    if (lastCommandAck.commandId === lastSentCommand.commandId) {
+      const rtt = Math.max(0, (lastCommandAck.timestamp || Date.now()) - lastSentCommand.timestamp);
+      if (lastCommandAck.status === 'EXECUTED') {
+        setAckState('EXECUTED');
+        setCommandStatusMsg(`ESP32 Executed [${lastSentCommand.command}] — Motors engaged (RTT: ${rtt}ms)`);
+      } else if (lastCommandAck.status === 'ACKNOWLEDGED') {
+        setAckState('ACKNOWLEDGED');
+        setCommandStatusMsg(`ESP32 Acknowledged [${lastSentCommand.command}] (RTT: ${rtt}ms)`);
+      } else if (lastCommandAck.status === 'REJECTED') {
+        setAckState('TIMEOUT');
+        setCommandStatusMsg(`ESP32 Rejected [${lastSentCommand.command}]: ${lastCommandAck.details || 'Obstacle or safety lock'}`);
+      }
+    }
+  }, [lastCommandAck, lastSentCommand]);
 
   const handleCommand = useCallback(
     async (cmd: CommandAction) => {
@@ -59,14 +86,27 @@ export const RemoteControl: React.FC = () => {
       }
 
       setActiveButton(cmd);
+      setAckState('QUEUED');
 
       try {
         const payload = await sendCommand(cmd, speedPercentage);
         setLastSentCommand(payload);
-        setCommandStatusMsg(`Dispatched [${cmd}] at ${new Date(payload.timestamp).toLocaleTimeString()} (Expires in 1500ms)`);
+        setCommandStatusMsg(`Dispatched [${cmd}] to Firebase queue — Waiting for ESP32 ACK...`);
+
+        // Watchdog for ACK: if no ACK after 1500ms, mark timeout
+        setTimeout(() => {
+          setAckState((prev) => {
+            if (prev === 'QUEUED') {
+              setCommandStatusMsg(`Command [${cmd}] expired — ESP32 did not acknowledge within 1500ms.`);
+              return 'TIMEOUT';
+            }
+            return prev;
+          });
+        }, 1500);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Network error';
         setCommandStatusMsg(`Command failed: ${msg}`);
+        setAckState('TIMEOUT');
       } finally {
         setTimeout(() => setActiveButton(null), 250);
       }
@@ -347,11 +387,72 @@ export const RemoteControl: React.FC = () => {
             </button>
           </div>
 
-          {/* Real Command Status Line */}
-          <div className="w-full mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-xs font-mono font-semibold text-slate-700 block truncate">
-              {commandStatusMsg}
-            </span>
+          {/* 3-Stage Command Lifecycle Status: Queue -> ESP32 ACK -> Execution */}
+          <div className="w-full mt-4 space-y-2">
+            <div className="grid grid-cols-3 gap-2 text-center select-none">
+              {/* Step 1: Firebase Queue */}
+              <div
+                className={`p-2 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 ${
+                  ackState === 'QUEUED' || ackState === 'ACKNOWLEDGED' || ackState === 'EXECUTED'
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono tracking-wider">1. Firebase</span>
+                <span>{ackState !== 'IDLE' ? 'Dispatched' : 'Standby'}</span>
+              </div>
+
+              {/* Step 2: ESP32 ACK */}
+              <div
+                className={`p-2 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 ${
+                  ackState === 'ACKNOWLEDGED' || ackState === 'EXECUTED'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : ackState === 'QUEUED'
+                    ? 'bg-amber-50 border-amber-200 text-amber-700 animate-pulse'
+                    : ackState === 'TIMEOUT'
+                    ? 'bg-rose-50 border-rose-200 text-rose-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono tracking-wider">2. ESP32 ACK</span>
+                <span>
+                  {ackState === 'ACKNOWLEDGED' || ackState === 'EXECUTED'
+                    ? 'Acknowledged'
+                    : ackState === 'QUEUED'
+                    ? 'Awaiting ACK...'
+                    : ackState === 'TIMEOUT'
+                    ? 'Timed Out'
+                    : 'Waiting'}
+                </span>
+              </div>
+
+              {/* Step 3: Motor Driver Execution */}
+              <div
+                className={`p-2 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 ${
+                  ackState === 'EXECUTED'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : ackState === 'ACKNOWLEDGED'
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono tracking-wider">3. Motor State</span>
+                <span>
+                  {ackState === 'EXECUTED'
+                    ? 'Executing'
+                    : ackState === 'ACKNOWLEDGED'
+                    ? 'Processing'
+                    : 'Idle'}
+                </span>
+              </div>
+            </div>
+
+            {/* Real Hardware Command Status Line */}
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+              <span className="text-xs font-mono font-semibold text-slate-700 block truncate">
+                {commandStatusMsg}
+              </span>
+            </div>
           </div>
         </div>
       </div>

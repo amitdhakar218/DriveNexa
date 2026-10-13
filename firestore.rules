@@ -82,8 +82,8 @@ service cloud.firestore {
       );
     }
 
-    // Global commands collection if used
-    match /commands/{deviceId}/{commandId} {
+    // Global commands audit log
+    match /commands/{deviceId}/{allPaths=**} {
       allow read, write: if isAuthorizedForDevice(deviceId);
     }
   }

@@ -126,6 +126,18 @@ export const DEFAULT_HARDWARE_SENSORS: Omit<SensorDefinition, 'deviceId'>[] = [
     firmwareProtocol: 'I2C',
   },
   {
+    id: 'sens_compass_01',
+    name: 'Electronic Digital Compass (QMC5883L / HMC5883L)',
+    type: 'compass',
+    status: 'NOT_CONNECTED',
+    enabled: true,
+    currentValue: null,
+    unit: '°',
+    lastUpdate: null,
+    firmwarePin: 'SDA: GPIO21, SCL: GPIO22 (I2C addr 0x0D / 0x1E)',
+    firmwareProtocol: 'I2C',
+  },
+  {
     id: 'sens_crash_01',
     name: 'Collision & Impact Detection Switch',
     type: 'crash',
@@ -361,12 +373,31 @@ export function subscribeToSensors(
       const val = snap.val();
       if (val && typeof val === 'object') {
         const updated = currentSensors.map((sensor) => {
-          if (val[sensor.type] !== undefined) {
-            const numVal = typeof val[sensor.type] === 'number' ? val[sensor.type] : Number(val[sensor.type]);
+          let rawVal: unknown = undefined;
+          if (sensor.type === 'compass') {
+            rawVal = val.compass ?? val.heading ?? val.compassHeading ?? val.magHeading;
+          } else if (sensor.type === 'speed') {
+            rawVal = val.speed ?? val.vehicleSpeed;
+          } else if (sensor.type === 'temperature') {
+            rawVal = val.temperature ?? val.temp ?? val.motorTemp;
+          } else if (sensor.type === 'battery') {
+            rawVal = val.battery ?? val.batt ?? val.batteryPercent ?? val.voltage;
+          } else if (sensor.type === 'distance') {
+            rawVal = val.distance ?? val.sonar ?? val.ultrasonic;
+          } else if (sensor.type === 'accelerometer') {
+            rawVal = val.accelerometer ?? val.accel ?? val.accelX;
+          } else if (sensor.type === 'motor') {
+            rawVal = val.motor ?? val.motorStatus ?? val.pwm;
+          } else {
+            rawVal = val[sensor.type] ?? val[sensor.id];
+          }
+
+          if (rawVal !== undefined && rawVal !== null) {
+            const numVal = typeof rawVal === 'number' ? rawVal : Number(rawVal);
             return {
               ...sensor,
-              currentValue: isNaN(numVal) ? null : numVal,
-              status: isNaN(numVal) ? 'NOT_CONNECTED' : ('ACTIVE' as SensorStatus),
+              currentValue: isNaN(numVal) ? String(rawVal) : numVal,
+              status: 'ACTIVE' as SensorStatus,
               lastUpdate: val.timestamp || Date.now(),
             };
           }
@@ -473,6 +504,39 @@ export async function sendRoverCommand(
   }
 
   return commandPayload;
+}
+
+/**
+ * Subscribe to real-time ESP32 hardware command acknowledgement
+ * Tracks whether the physical ESP32 has acknowledged or executed the command
+ */
+export function subscribeToCommandAck(
+  deviceId: string,
+  onAck: (ack: {
+    commandId: string;
+    status: 'QUEUED' | 'PENDING' | 'ACKNOWLEDGED' | 'EXECUTING' | 'EXECUTED' | 'EXPIRED' | 'REJECTED';
+    timestamp: number;
+    motorStatus?: string;
+    details?: string;
+  } | null) => void
+) {
+  const ackRef = rtdbRef(rtdb, `devices/${deviceId}/commandAck`);
+  const unsub = onValue(
+    ackRef,
+    (snap) => {
+      const val = snap.val();
+      if (val && typeof val === 'object' && val.commandId) {
+        onAck(val);
+      } else {
+        onAck(null);
+      }
+    },
+    (err) => {
+      console.warn('RTDB commandAck listener note:', err.message);
+    }
+  );
+
+  return () => off(ackRef);
 }
 
 /**

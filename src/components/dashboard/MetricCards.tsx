@@ -10,6 +10,7 @@ import {
   Battery,
   MapPin,
   Camera,
+  Compass,
   Wifi,
   Activity,
   ShieldCheck,
@@ -41,6 +42,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   const speedSensor = sensors.find((s) => s.type === 'speed');
   const tempSensor = sensors.find((s) => s.type === 'temperature');
   const batterySensor = sensors.find((s) => s.type === 'battery');
+  const compassSensor = sensors.find((s) => s.type === 'compass');
 
   const openDetail = (sensor: SensorDefinition | undefined, title: string, icon: React.ReactNode) => {
     if (sensor) {
@@ -170,7 +172,37 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
           </div>
         </div>
 
-        {/* 4. GPS Card -> Navigates to Map */}
+        {/* 4. Digital Compass / Heading Card */}
+        <div
+          onClick={() => openDetail(compassSensor, 'Digital Magnetic Compass (QMC5883L)', <Compass className="w-5 h-5" />)}
+          className="group p-4.5 rounded-2xl bg-white border border-slate-200/80 hover:border-cyan-400 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between shadow-xs select-none"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2.5 rounded-xl bg-cyan-50 border border-cyan-100 text-cyan-600">
+              <Compass className="w-5 h-5" />
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-cyan-600 group-hover:translate-x-0.5 transition" />
+          </div>
+          <div className="mt-4">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              Compass Heading
+            </span>
+            <div className="mt-1">
+              {isConnected && compassSensor?.currentValue !== null && compassSensor?.status === 'ACTIVE' ? (
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-slate-900">{compassSensor?.currentValue}</span>
+                  <span className="text-xs font-bold text-cyan-600">°</span>
+                </div>
+              ) : (
+                <span className="text-xs font-bold text-amber-600">
+                  {!isConnected ? 'Not Connected' : compassSensor?.status === 'DISABLED' ? 'Disabled' : 'No Data Available'}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 5. GPS Card -> Navigates to Map */}
         <div
           onClick={() => onNavigateTab('map')}
           className="group p-4.5 rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between shadow-xs select-none"

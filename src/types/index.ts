@@ -32,6 +32,7 @@ export type SensorType =
   | 'temperature'
   | 'battery'
   | 'gps'
+  | 'compass'
   | 'distance'
   | 'accelerometer'
   | 'gyroscope'
@@ -91,6 +92,16 @@ export type CommandAction =
   | 'LIGHTS_TOGGLE'
   | 'SPEED_SET';
 
+export type CommandExecutionStatus =
+  | 'QUEUED'
+  | 'PENDING'
+  | 'ACKNOWLEDGED'
+  | 'EXECUTING'
+  | 'EXECUTED'
+  | 'EXPIRED'
+  | 'REJECTED'
+  | 'TIMEOUT';
+
 export interface RoverCommand {
   commandId: string;
   deviceId: string;
@@ -99,9 +110,11 @@ export interface RoverCommand {
   speedPercentage?: number; // 0 - 100
   timestamp: number;
   expiresAt: number; // Stale protection: strictly valid for 1500ms
-  status: 'PENDING' | 'EXECUTED' | 'EXPIRED' | 'REJECTED';
+  status: CommandExecutionStatus;
+  acknowledgedAt?: number;
   executedAt?: number;
   sourceIp?: string;
+  errorReason?: string;
 }
 
 export type AlertSeverity = 'WARNING' | 'CRITICAL' | 'EMERGENCY';
