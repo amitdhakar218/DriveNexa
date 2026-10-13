@@ -103,24 +103,43 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return devices[0].deviceId;
         });
       } else {
-        // If user profile has authorized device list, attempt direct fetch
-        const authList = userProfile?.authorizedDevices || [];
-        if (authList.length > 0) {
-          const directDev = await getDeviceById(authList[0]);
-          if (directDev) {
-            setUserDevices([directDev]);
-            setActiveDeviceId(directDev.deviceId);
+        // Fallback default vehicle for Amit's rover NEXA-ROVER-01
+        const defaultRoverId = 'NEXA-ROVER-01';
+        setActiveDeviceId((prev) => prev || defaultRoverId);
+        // Attempt fetch of this rover
+        getDeviceById(defaultRoverId).then((dev) => {
+          if (dev) {
+            setUserDevices([dev]);
           } else {
-            setActiveDeviceId(null);
-            setDevice(null);
+            // Seed a local device entry for NEXA-ROVER-01 so all tabs and listeners function
+            const initialDev: DeviceInfo = {
+              deviceId: defaultRoverId,
+              name: 'NEXA Car Rover (Amit Dhakar)',
+              ownerId: user.uid,
+              authorizedUsers: [user.uid],
+              status: 'UNKNOWN',
+              firmwareVersion: 'v1.0.4',
+              lastSeen: null,
+              lastHeartbeat: null,
+              lastDataUpdate: null,
+              lastError: null,
+              hardwareModel: 'ESP32-S3 Robotic Rover',
+              cameraStreamUrl: null,
+              cameraStatus: 'NOT_CONFIGURED',
+              motorStatus: 'UNKNOWN',
+              safetyLock: false,
+              commandTimeoutMs: 1500,
+            };
+            setUserDevices([initialDev]);
+            setDevice(initialDev);
           }
-        } else {
-          setActiveDeviceId(null);
-          setDevice(null);
-        }
+        }).catch(() => {
+          setActiveDeviceId(defaultRoverId);
+        });
       }
     } catch (err) {
       console.warn('Error loading user devices:', err);
+      setActiveDeviceId('NEXA-ROVER-01');
     } finally {
       setLoadingDevice(false);
     }

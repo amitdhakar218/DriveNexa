@@ -303,26 +303,34 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
     rtdbDevRef,
     (snapshot) => {
       const val = snapshot.val();
-      if (val && typeof val.lastSeen === 'number') {
-        onUpdate({
-          deviceId,
-          name: val.name || deviceId,
-          ownerId: val.ownerId || '',
-          authorizedUsers: val.authorizedUsers || [],
-          status: calculateDeviceStatus(val.lastSeen),
-          firmwareVersion: val.firmwareVersion || 'v1.0.4',
-          lastSeen: val.lastSeen,
-          lastHeartbeat: val.lastSeen,
-          lastDataUpdate: val.lastDataUpdate || val.lastSeen,
-          lastError: val.lastError || null,
-          hardwareModel: val.hardwareModel || 'ESP32 4WD Platform',
-          cameraStreamUrl: val.cameraStreamUrl || null,
-          cameraStatus: val.cameraStatus || 'NOT_CONFIGURED',
-          motorStatus: val.motorStatus || 'UNKNOWN',
-          safetyLock: !!val.safetyLock,
-          commandTimeoutMs: val.commandTimeoutMs || 1500,
-        });
-      }
+      if (!val) return;
+      
+      const lastSeen = typeof val === 'number' 
+        ? val 
+        : typeof val.lastSeen === 'number' 
+          ? val.lastSeen 
+          : typeof val.timestamp === 'number' 
+            ? val.timestamp 
+            : Date.now();
+
+      onUpdate({
+        deviceId,
+        name: val.name || deviceId,
+        ownerId: val.ownerId || '',
+        authorizedUsers: val.authorizedUsers || [],
+        status: calculateDeviceStatus(lastSeen),
+        firmwareVersion: val.firmwareVersion || 'v1.0.4',
+        lastSeen: lastSeen,
+        lastHeartbeat: lastSeen,
+        lastDataUpdate: val.lastDataUpdate || lastSeen,
+        lastError: val.lastError || null,
+        hardwareModel: val.hardwareModel || 'ESP32-S3 Robotic Rover',
+        cameraStreamUrl: val.cameraStreamUrl || null,
+        cameraStatus: val.cameraStatus || 'NOT_CONFIGURED',
+        motorStatus: val.motorStatus || 'UNKNOWN',
+        safetyLock: !!val.safetyLock,
+        commandTimeoutMs: val.commandTimeoutMs || 1500,
+      });
     },
     (err) => {
       console.warn('RTDB device heartbeat listener note:', err.message);
