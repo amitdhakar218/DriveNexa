@@ -1,7 +1,7 @@
 import React from 'react';
-import { Home, Gamepad2, MapPin, UserCheck } from 'lucide-react';
+import { Home, Gamepad2, Camera, MapPin, UserCheck } from 'lucide-react';
 
-export type TabKey = 'home' | 'remote' | 'map' | 'profile' | 'admin' | 'emergency';
+export type TabKey = 'home' | 'remote' | 'camera' | 'map' | 'profile' | 'admin' | 'emergency';
 
 interface BottomNavProps {
   activeTab: TabKey;
@@ -21,8 +21,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     },
     {
       key: 'remote' as TabKey,
-      label: 'CAR REMOTE',
+      label: 'REMOTE',
       icon: Gamepad2,
+    },
+    {
+      key: 'camera' as TabKey,
+      label: 'CAMERA',
+      icon: Camera,
     },
     {
       key: 'map' as TabKey,
@@ -38,7 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 shadow-lg backdrop-blur-md pb-safe">
-      <div className="max-w-md mx-auto grid grid-cols-4 h-16 px-2">
+      <div className="max-w-md mx-auto grid grid-cols-5 h-16 px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;

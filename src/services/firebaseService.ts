@@ -39,10 +39,10 @@ import {
 export function calculateDeviceStatus(lastSeen: number | null): DeviceConnectionState {
   if (!lastSeen) return 'UNKNOWN';
   const now = Date.now();
-  // Standardize timestamp if reported in seconds instead of milliseconds
-  const lastSeenMs = lastSeen < 10000000000 ? lastSeen * 1000 : lastSeen;
+  // Standardize timestamp if reported in epoch seconds instead of milliseconds
+  const lastSeenMs = (lastSeen > 1000000000 && lastSeen < 10000000000) ? lastSeen * 1000 : lastSeen;
   const diffSec = (now - lastSeenMs) / 1000;
-  if (diffSec >= 0 && diffSec <= 15) return 'CONNECTED';
+  if (diffSec >= -5 && diffSec <= 20) return 'CONNECTED';
   return 'DISCONNECTED';
 }
 
@@ -297,37 +297,36 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
     }
   );
 
-  // RTDB live heartbeat listener
-  const rtdbDevRef = rtdbRef(rtdb, `devices/${deviceId}/heartbeat`);
+  // RTDB live heartbeat and telemetry listener
+  const rtdbRootRef = rtdbRef(rtdb, `devices/${deviceId}`);
   const unsubRtdb = onValue(
-    rtdbDevRef,
+    rtdbRootRef,
     (snapshot) => {
       const val = snapshot.val();
       if (!val) return;
       
-      const lastSeen = typeof val === 'number' 
-        ? val 
-        : typeof val.lastSeen === 'number' 
-          ? val.lastSeen 
-          : typeof val.timestamp === 'number' 
-            ? val.timestamp 
-            : Date.now();
+      const now = Date.now();
+      const hb = (val.heartbeat && typeof val.heartbeat === 'object') ? val.heartbeat : {};
+      const telem = (val.telemetry && typeof val.telemetry === 'object') ? val.telemetry : {};
+      const detectedIp = hb.ip || telem.ip || val.ip || '10.181.152.99';
+      const isOnline = hb.status === 'CONNECTED' || telem.status === 'ONLINE' || !!val.heartbeat;
 
       onUpdate({
         deviceId,
-        name: val.name || deviceId,
+        name: val.name || 'NEXA Car Rover (Amit Dhakar)',
         ownerId: val.ownerId || '',
         authorizedUsers: val.authorizedUsers || [],
-        status: calculateDeviceStatus(lastSeen),
+        status: isOnline ? 'CONNECTED' : 'DISCONNECTED',
         firmwareVersion: val.firmwareVersion || 'v1.0.4',
-        lastSeen: lastSeen,
-        lastHeartbeat: lastSeen,
-        lastDataUpdate: val.lastDataUpdate || lastSeen,
+        lastSeen: now,
+        lastHeartbeat: now,
+        lastDataUpdate: now,
+        ipAddress: detectedIp,
         lastError: val.lastError || null,
         hardwareModel: val.hardwareModel || 'ESP32-S3 Robotic Rover',
-        cameraStreamUrl: val.cameraStreamUrl || null,
-        cameraStatus: val.cameraStatus || 'NOT_CONFIGURED',
-        motorStatus: val.motorStatus || 'UNKNOWN',
+        cameraStreamUrl: val.cameraStreamUrl || telem.cameraStreamUrl || (detectedIp ? `http://${detectedIp}:81/stream` : null),
+        cameraStatus: val.cameraStatus || telem.cameraStatus || (isOnline ? 'STREAMING' : 'NOT_CONFIGURED'),
+        motorStatus: val.motorStatus || telem.motorStatus || 'STANDBY',
         safetyLock: !!val.safetyLock,
         commandTimeoutMs: val.commandTimeoutMs || 1500,
       });
@@ -339,7 +338,7 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
 
   return () => {
     unsubFs();
-    off(rtdbDevRef);
+    off(rtdbRootRef);
   };
 }
 

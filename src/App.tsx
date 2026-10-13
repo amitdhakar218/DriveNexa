@@ -46,6 +46,9 @@ const MainAppContent: React.FC = () => {
         case 'remote':
           title = 'DriveNexa – Remote Control';
           break;
+        case 'camera':
+          title = 'DriveNexa – Live Hardware Camera';
+          break;
         case 'map':
           title = 'DriveNexa – Live Map';
           break;
@@ -111,6 +114,8 @@ const MainAppContent: React.FC = () => {
         );
       case 'remote':
         return <RemoteControl />;
+      case 'camera':
+        return <CameraViewer />;
       case 'map':
         return <VehicleMap />;
       case 'profile':

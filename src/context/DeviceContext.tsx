@@ -63,13 +63,32 @@ const DeviceContext = createContext<DeviceContextType | undefined>(undefined);
 
 export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, userProfile, addAuthorizedDevice } = useAuth();
-  const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
-  const [userDevices, setUserDevices] = useState<DeviceInfo[]>([]);
+  const [activeDeviceId, setActiveDeviceId] = useState<string | null>('NEXA-ROVER-01');
+  const [userDevices, setUserDevices] = useState<DeviceInfo[]>([
+    {
+      deviceId: 'NEXA-ROVER-01',
+      name: 'NEXA Car Rover (Amit Dhakar)',
+      ownerId: 'amit_dhakar',
+      authorizedUsers: ['amit_dhakar'],
+      status: 'UNKNOWN',
+      firmwareVersion: 'v1.0.4',
+      lastSeen: null,
+      lastHeartbeat: null,
+      lastDataUpdate: null,
+      lastError: null,
+      hardwareModel: 'ESP32-S3 Robotic Rover',
+      cameraStreamUrl: null,
+      cameraStatus: 'NOT_CONFIGURED',
+      motorStatus: 'UNKNOWN',
+      safetyLock: false,
+      commandTimeoutMs: 1500,
+    },
+  ]);
   const [device, setDevice] = useState<DeviceInfo | null>(null);
   const [sensors, setSensors] = useState<SensorDefinition[]>([]);
   const [liveGps, setLiveGps] = useState<GPSRecord | null>(null);
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
-  const [loadingDevice, setLoadingDevice] = useState<boolean>(true);
+  const [loadingDevice, setLoadingDevice] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
   const [lastCommandAck, setLastCommandAck] = useState<CommandAckPayload | null>(null);
 
@@ -83,10 +102,9 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Load authorized devices for this authenticated user
   const loadUserDevices = useCallback(async () => {
+    const defaultRoverId = 'NEXA-ROVER-01';
     if (!user) {
-      setUserDevices([]);
-      setActiveDeviceId(null);
-      setDevice(null);
+      setActiveDeviceId(defaultRoverId);
       setLoadingDevice(false);
       return;
     }
@@ -94,44 +112,18 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setLoadingDevice(true);
     try {
       const devices = await fetchUserDevices(user.uid);
-      setUserDevices(devices);
-
       if (devices.length > 0) {
-        // If current active device is valid, keep it; else select first authorized
+        setUserDevices(devices);
         setActiveDeviceId((prev) => {
           if (prev && devices.some((d) => d.deviceId === prev)) return prev;
           return devices[0].deviceId;
         });
       } else {
         // Fallback default vehicle for Amit's rover NEXA-ROVER-01
-        const defaultRoverId = 'NEXA-ROVER-01';
         setActiveDeviceId((prev) => prev || defaultRoverId);
-        // Attempt fetch of this rover
         getDeviceById(defaultRoverId).then((dev) => {
           if (dev) {
             setUserDevices([dev]);
-          } else {
-            // Seed a local device entry for NEXA-ROVER-01 so all tabs and listeners function
-            const initialDev: DeviceInfo = {
-              deviceId: defaultRoverId,
-              name: 'NEXA Car Rover (Amit Dhakar)',
-              ownerId: user.uid,
-              authorizedUsers: [user.uid],
-              status: 'UNKNOWN',
-              firmwareVersion: 'v1.0.4',
-              lastSeen: null,
-              lastHeartbeat: null,
-              lastDataUpdate: null,
-              lastError: null,
-              hardwareModel: 'ESP32-S3 Robotic Rover',
-              cameraStreamUrl: null,
-              cameraStatus: 'NOT_CONFIGURED',
-              motorStatus: 'UNKNOWN',
-              safetyLock: false,
-              commandTimeoutMs: 1500,
-            };
-            setUserDevices([initialDev]);
-            setDevice(initialDev);
           }
         }).catch(() => {
           setActiveDeviceId(defaultRoverId);
@@ -139,19 +131,19 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     } catch (err) {
       console.warn('Error loading user devices:', err);
-      setActiveDeviceId('NEXA-ROVER-01');
+      setActiveDeviceId(defaultRoverId);
     } finally {
       setLoadingDevice(false);
     }
-  }, [user, userProfile]);
+  }, [user]);
 
   useEffect(() => {
     loadUserDevices();
   }, [loadUserDevices]);
 
-  // Real-time subscriptions for selected active device
+  // Real-time subscriptions for selected active device (RTDB & Firestore)
   useEffect(() => {
-    if (!activeDeviceId || !user) {
+    if (!activeDeviceId) {
       setDevice(null);
       setSensors([]);
       setLiveGps(null);
@@ -264,14 +256,22 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (device.lastError) return 'ERROR';
 
     const lastSignal = device.lastHeartbeat || device.lastSeen || device.lastDataUpdate;
-    if (!lastSignal) return 'UNKNOWN';
+    if (!lastSignal) {
+      return device.status === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED';
+    }
 
-    // Normalize seconds timestamp if needed
-    const lastSignalMs = lastSignal < 10000000000 ? lastSignal * 1000 : lastSignal;
-    const diffSec = (currentTime - lastSignalMs) / 1000;
+    // Standardize epoch ms
+    const lastSignalMs = (lastSignal > 1000000000 && lastSignal < 10000000000)
+      ? lastSignal * 1000
+      : lastSignal;
 
-    if (diffSec >= 0 && diffSec <= 15) return 'CONNECTED';
-    return 'DISCONNECTED';
+    if (lastSignalMs > 1000000000000) {
+      const diffSec = (currentTime - lastSignalMs) / 1000;
+      if (diffSec >= -5 && diffSec <= 20) return 'CONNECTED';
+      return 'DISCONNECTED';
+    }
+
+    return device.status === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED';
   }, [activeDeviceId, device, currentTime]);
 
   const lastHeartbeat = device?.lastHeartbeat

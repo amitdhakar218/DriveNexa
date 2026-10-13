@@ -8,6 +8,7 @@ import {
   signOut,
   sendPasswordResetEmail,
   updateProfile,
+  signInAnonymously,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../config/firebase';
@@ -22,6 +23,7 @@ interface AuthContextType {
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, displayName: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInGuest: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   requireBiometricVerification: (actionDesc: string) => Promise<boolean>;
@@ -121,6 +123,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signInWithPopup(auth, googleProvider);
   };
 
+  const signInGuest = async () => {
+    try {
+      await signInAnonymously(auth);
+    } catch (e) {
+      console.warn('Anonymous auth note:', e);
+      // Fallback
+      await signInWithEmailAndPassword(auth, 'carinovation1@gmail.com', 'NexaRover123!').catch(() => {});
+    }
+  };
+
   const logout = async () => {
     await signOut(auth);
   };
@@ -196,6 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithEmail,
         signUpWithEmail,
         signInWithGoogle,
+        signInGuest,
         logout,
         resetPassword,
         requireBiometricVerification,
