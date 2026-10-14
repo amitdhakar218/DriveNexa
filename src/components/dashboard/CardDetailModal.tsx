@@ -264,18 +264,6 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
             />
           )}
         </div>
-
-        {/* Sensor Driver / Firmware Integration Note */}
-        <div className="mt-6 p-4 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-slate-700">
-          <div className="flex items-center gap-2 font-bold text-blue-900 mb-1">
-            <Cpu className="w-4 h-4 text-blue-600" />
-            <span>Hardware Driver & Firmware Mapping</span>
-          </div>
-          <p className="text-[11px] text-slate-600 leading-relaxed">
-            Telemetry is streamed strictly from connected microcontrollers to Firebase.
-            If no hardware has reported data yet, DriveNexa displays an authentic unavailable state without generating artificial values.
-          </p>
-        </div>
       </div>
     </div>
   );

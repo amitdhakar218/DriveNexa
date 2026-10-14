@@ -313,7 +313,19 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
       const hb = (val.heartbeat && typeof val.heartbeat === 'object') ? val.heartbeat : {};
       const telem = (val.telemetry && typeof val.telemetry === 'object') ? val.telemetry : {};
       const detectedIp = hb.ip || telem.ip || val.ip || '10.181.152.99';
-      const isOnline = hb.status === 'CONNECTED' || telem.status === 'ONLINE' || !!val.heartbeat;
+      // Extract actual hardware timestamp from RTDB
+      let deviceTimestamp: number | null = null;
+      const rawTime = hb.serverTime || hb.timestamp || telem.timestamp || val.timestamp || (typeof hb.lastSeen === 'number' && hb.lastSeen > 1000000000 ? hb.lastSeen : null);
+      if (typeof rawTime === 'number') {
+        if (rawTime > 1000000000000) {
+          deviceTimestamp = rawTime;
+        } else if (rawTime > 1000000000) {
+          deviceTimestamp = rawTime * 1000;
+        }
+      }
+
+      // 100% REAL ONLINE CHECK: Active if heartbeat arrived within last 15 seconds
+      const isOnline = !!(deviceTimestamp && (now - deviceTimestamp) <= 15000);
       latestRtdbActive = isOnline;
 
       onUpdate({
@@ -323,9 +335,9 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
         authorizedUsers: val.authorizedUsers || [],
         status: isOnline ? 'CONNECTED' : 'DISCONNECTED',
         firmwareVersion: val.firmwareVersion || 'v1.0.4',
-        lastSeen: now,
-        lastHeartbeat: now,
-        lastDataUpdate: now,
+        lastSeen: deviceTimestamp,
+        lastHeartbeat: deviceTimestamp,
+        lastDataUpdate: deviceTimestamp,
         ipAddress: detectedIp,
         lastError: val.lastError || null,
         hardwareModel: val.hardwareModel || 'ESP32-S3 Robotic Rover',

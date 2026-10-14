@@ -255,10 +255,10 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!activeDeviceId || !device) return 'UNKNOWN';
     if (device.lastError) return 'ERROR';
 
-    // If device status is CONNECTED or UNKNOWN with recent update
+    // 100% REAL HARDWARE CHECK: No fake online!
     const lastSignal = device.lastHeartbeat || device.lastSeen || device.lastDataUpdate;
     if (!lastSignal) {
-      return device.status === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED';
+      return 'DISCONNECTED';
     }
 
     // Standardize epoch ms
@@ -268,14 +268,15 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     if (lastSignalMs > 1000000000000) {
       const diffSec = (currentTime - lastSignalMs) / 1000;
-      // Allow 45s heartbeat window for ESP32 WiFi latency
-      if (diffSec >= -10 && diffSec <= 45) return 'CONNECTED';
-      // If RTDB status explicitly says CONNECTED
-      if (device.status === 'CONNECTED' && diffSec <= 60) return 'CONNECTED';
+      // ESP32 sends heartbeat every 3-5 seconds. If received within last 15 seconds, it is ONLINE!
+      if (diffSec >= -5 && diffSec <= 15) {
+        return 'CONNECTED';
+      }
       return 'DISCONNECTED';
     }
 
-    return device.status === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED';
+    // If timestamp is not a valid epoch time, mark as DISCONNECTED
+    return 'DISCONNECTED';
   }, [activeDeviceId, device, currentTime]);
 
   const lastHeartbeat = device?.lastHeartbeat

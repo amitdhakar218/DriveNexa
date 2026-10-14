@@ -22,11 +22,12 @@ import {
   WifiOff,
   Cpu,
   Layers,
+  Camera,
 } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { user, loading } = useAuth();
-  const { unacknowledgedAlertsCount } = useDevice();
+  const { unacknowledgedAlertsCount, device, connectionState } = useDevice();
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [subView, setSubView] = useState<'NONE' | 'SENSORS' | 'CAMERA' | '404'>('NONE');
 
@@ -104,6 +105,58 @@ const MainAppContent: React.FC = () => {
 
     switch (activeTab) {
       case 'home':
+        return (
+          <div className="space-y-6">
+            {/* Rover Quick Summary & Navigation Header */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">
+                    {device?.name || 'NEXA Car Rover (Amit Dhakar)'}
+                  </h2>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                    connectionState === 'CONNECTED'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}>
+                    {connectionState === 'CONNECTED' ? '● ONLINE (कनेक्टेड)' : '○ OFFLINE (डिस्कनेक्टेड)'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1.5 font-medium">
+                  <span>हार्डवेयर: <strong className="text-slate-700 font-mono">ESP32-S3 WROOM</strong></span>
+                  <span>•</span>
+                  <span>IP एड्रेस: <strong className="text-blue-700 font-mono">{device?.ipAddress || '10.181.152.99'}</strong></span>
+                  <span>•</span>
+                  <span>हॉटस्पॉट: <strong className="text-slate-700 font-mono">vivo (12345678)</strong></span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => handleNavigate('remote')}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-xs"
+                >
+                  <Cpu className="w-4 h-4" />
+                  <span>रिमोट कंट्रोल (ड्राइव)</span>
+                </button>
+                <button
+                  onClick={() => handleNavigate('camera')}
+                  className="px-3.5 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center gap-2 transition cursor-pointer border border-purple-200"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>लाइव कैमरा</span>
+                </button>
+              </div>
+            </div>
+
+            {/* All Sensor & Vehicle Metric Cards (डिब्बे) */}
+            <MetricCards
+              onNavigateTab={handleNavigate}
+              onOpenSensorManager={() => setSubView('SENSORS')}
+              onOpenLiveCamera={() => handleNavigate('camera')}
+            />
+          </div>
+        );
       case 'remote':
         return <RoverCockpit />;
       case 'camera':

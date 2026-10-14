@@ -177,26 +177,27 @@ void sendHeartbeatAndTelemetry() {
     String ipStr = WiFi.localIP().toString();
     unsigned long epochSec = millis() / 1000;
 
-    // 1. Heartbeat Sync
+    // 1. Heartbeat Sync (Real-time Firebase Server Timestamp)
     String hbUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/heartbeat.json?auth=" + String(API_KEY);
     http.begin(hbUrl);
     http.addHeader("Content-Type", "application/json");
-    String hbPayload = "{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + ipStr + "\\"}";
+    String hbPayload = "{\"serverTime\":{\".sv\":\"timestamp\"},\"lastSeen\":{\".sv\":\"timestamp\"},\"status\":\"CONNECTED\",\"ip\":\"" + ipStr + "\"}";
     http.PUT(hbPayload);
     http.end();
 
-    // 2. Telemetry Sync (Compass, Battery, IP, Camera Stream Link)
+    // 2. Telemetry Sync (Compass, Battery, IP, Camera Stream Link, Timestamp)
     String telemUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/telemetry.json?auth=" + String(API_KEY);
     http.begin(telemUrl);
     http.addHeader("Content-Type", "application/json");
     float heading = readCompassHeading();
-    String telemPayload = "{\\"heading\\":" + String(heading) +
-                          ",\\"compass\\":" + String(heading) +
-                          ",\\"battery\\":98" +
-                          ",\\"ip\\":\\"" + ipStr + "\\"" +
-                          ",\\"cameraStatus\\":\\"STREAMING\\"" +
-                          ",\\"cameraStreamUrl\\":\\"http://" + ipStr + ":81/stream\\"" +
-                          ",\\"status\\":\\"ONLINE\\"}";
+    String telemPayload = "{\"timestamp\":{\".sv\":\"timestamp\"}" +
+                          ",\"heading\":" + String(heading) +
+                          ",\"compass\":" + String(heading) +
+                          ",\"battery\":98" +
+                          ",\"ip\":\"" + ipStr + "\"" +
+                          ",\"cameraStatus\":\"STREAMING\"" +
+                          ",\"cameraStreamUrl\":\"http://" + ipStr + ":81/stream\"" +
+                          ",\"status\":\"ONLINE\"}";
     http.PUT(telemPayload);
     http.end();
   }
@@ -513,18 +514,17 @@ void sendHeartbeatAndTelemetry() {
     HTTPClient http;
     http.setTimeout(1200);
     String ipStr = WiFi.localIP().toString();
-    unsigned long epochSec = millis() / 1000;
 
     String hbUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/heartbeat.json?auth=" + String(API_KEY);
     http.begin(hbUrl);
     http.addHeader("Content-Type", "application/json");
-    http.PUT("{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + ipStr + "\\"}");
+    http.PUT("{\"serverTime\":{\".sv\":\"timestamp\"},\"lastSeen\":{\".sv\":\"timestamp\"},\"status\":\"CONNECTED\",\"ip\":\"" + ipStr + "\"}");
     http.end();
 
     String telemUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/telemetry.json?auth=" + String(API_KEY);
     http.begin(telemUrl);
     http.addHeader("Content-Type", "application/json");
-    http.PUT("{\\"heading\\":0.0,\\"compass\\":0.0,\\"battery\\":98,\\"ip\\":\\"" + ipStr + "\\",\\"cameraStatus\\":\\"STREAMING\\",\\"cameraStreamUrl\\":\\"http://" + ipStr + ":81/stream\\",\\"status\\":\\"ONLINE\\"}");
+    http.PUT("{\"timestamp\":{\".sv\":\"timestamp\"},\"heading\":0.0,\"compass\":0.0,\"battery\":98,\"ip\":\"" + ipStr + "\",\"cameraStatus\":\"STREAMING\",\"cameraStreamUrl\":\"http://" + ipStr + ":81/stream\",\"status\":\"ONLINE\"}");
     http.end();
   }
 }
@@ -705,13 +705,13 @@ void sendHeartbeatAndTelemetry() {
     String hbUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/heartbeat.json?auth=" + String(API_KEY);
     http.begin(hbUrl);
     http.addHeader("Content-Type", "application/json");
-    http.PUT("{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + ipStr + "\\"}");
+    http.PUT("{\"serverTime\":{\".sv\":\"timestamp\"},\"lastSeen\":{\".sv\":\"timestamp\"},\"status\":\"CONNECTED\",\"ip\":\"" + ipStr + "\"}");
     http.end();
 
     String telemUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/telemetry.json?auth=" + String(API_KEY);
     http.begin(telemUrl);
     http.addHeader("Content-Type", "application/json");
-    http.PUT("{\\"heading\\":0.0,\\"compass\\":0.0,\\"battery\\":98,\\"ip\\":\\"" + ipStr + "\\",\\"cameraStatus\\":\\"STREAMING\\",\\"cameraStreamUrl\\":\\"http://" + ipStr + ":81/stream\\",\\"status\\":\\"ONLINE\\"}");
+    http.PUT("{\"timestamp\":{\".sv\":\"timestamp\"},\"heading\":0.0,\"compass\":0.0,\"battery\":98,\"ip\":\"" + ipStr + "\",\"cameraStatus\":\"STREAMING\",\"cameraStreamUrl\":\"http://" + ipStr + ":81/stream\",\"status\":\"ONLINE\"}");
     http.end();
   }
 }
