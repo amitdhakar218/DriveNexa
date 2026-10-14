@@ -114,20 +114,11 @@ const MainAppContent: React.FC = () => {
                   <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">
                     {device?.name || 'NEXA Car Rover (Amit Dhakar)'}
                   </h2>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                    connectionState === 'CONNECTED'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-rose-50 text-rose-700 border-rose-200'
-                  }`}>
-                    {connectionState === 'CONNECTED' ? '● ONLINE (कनेक्टेड)' : '○ OFFLINE (डिस्कनेक्टेड)'}
-                  </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1.5 font-medium">
-                  <span>हार्डवेयर: <strong className="text-slate-700 font-mono">ESP32-S3 WROOM</strong></span>
+                  <span>हार्डवेयर: <strong className="text-slate-700 font-mono">{device?.hardwareModel || 'ESP32-S3 Robotic Rover'}</strong></span>
                   <span>•</span>
-                  <span>IP एड्रेस: <strong className="text-blue-700 font-mono">{device?.ipAddress || '10.181.152.99'}</strong></span>
-                  <span>•</span>
-                  <span>हॉटस्पॉट: <strong className="text-slate-700 font-mono">vivo (12345678)</strong></span>
+                  <span>IP एड्रेस: <strong className="text-blue-700 font-mono">{device?.ipAddress ? device.ipAddress : 'कनेक्शन प्रतीक्षारत (Offline)'}</strong></span>
                 </div>
               </div>
 

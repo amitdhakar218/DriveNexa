@@ -22,7 +22,7 @@ interface Esp32CodeModalProps {
 export const Esp32CodeModal: React.FC<Esp32CodeModalProps> = ({
   isOpen,
   onClose,
-  detectedIp = '10.181.152.99',
+  detectedIp = '',
 }) => {
   const [boardType, setBoardType] = useState<'ESP32_S3_CAM' | 'AMIT_WIRED_PINS' | 'AI_THINKER'>('AMIT_WIRED_PINS');
   const [copied, setCopied] = useState(false);
@@ -782,8 +782,13 @@ void loop() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md cursor-pointer"
+    >
+      <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100 cursor-default">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">

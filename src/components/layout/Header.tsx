@@ -266,7 +266,7 @@ export const Header: React.FC<HeaderProps> = ({
       <Esp32CodeModal
         isOpen={isCodeModalOpen}
         onClose={() => setIsCodeModalOpen(false)}
-        detectedIp={device?.ipAddress || '10.181.152.99'}
+        detectedIp={device?.ipAddress || undefined}
       />
     </header>
   );

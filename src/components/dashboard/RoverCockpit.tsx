@@ -27,9 +27,9 @@ import {
 
 export const RoverCockpit: React.FC = () => {
   const { device, connectionState, activeDeviceId } = useDevice();
-  const detectedIp = device?.ipAddress || '10.181.152.99';
-  const defaultStreamUrl = device?.cameraStreamUrl || `http://${detectedIp}:81/stream`;
-  const defaultSnapshotUrl = `http://${detectedIp}/cam-hi.jpg`;
+  const detectedIp = device?.ipAddress || null;
+  const defaultStreamUrl = detectedIp ? `http://${detectedIp}:81/stream` : '';
+  const defaultSnapshotUrl = detectedIp ? `http://${detectedIp}/cam-hi.jpg` : '';
 
   // Camera & Stream states
   const [streamUrl, setStreamUrl] = useState(defaultStreamUrl);
@@ -57,7 +57,7 @@ export const RoverCockpit: React.FC = () => {
     heading: 0,
     compass: 0,
     status: 'ONLINE',
-    ip: detectedIp,
+    ip: detectedIp || undefined,
   });
 
   // Sync stream URL when device IP or cameraStreamUrl updates
@@ -199,7 +199,7 @@ export const RoverCockpit: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            डिवाइस: <strong className="text-slate-700">NEXA-ROVER-01</strong> | हॉटस्पॉट: <strong className="text-slate-700">vivo (10.181.152.99)</strong>
+            डिवाइस: <strong className="text-slate-700">NEXA-ROVER-01</strong> {detectedIp && <> | IP: <strong className="text-blue-700 font-mono">{detectedIp}</strong></>}
           </p>
         </div>
 
@@ -369,7 +369,7 @@ export const RoverCockpit: React.FC = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
             <span>LIVE</span>
             <span className="text-slate-400">|</span>
-            <span className="text-slate-300">IP: {detectedIp}</span>
+            <span className="text-slate-300">IP: {detectedIp || 'No IP (Offline)'}</span>
             <span className="text-slate-400">|</span>
             <span className="text-amber-300 font-bold">{activeCommand}</span>
           </div>
@@ -431,7 +431,7 @@ export const RoverCockpit: React.FC = () => {
           <div className="overflow-hidden">
             <span className="text-[11px] font-medium text-slate-500 block">ESP32 IP</span>
             <span className="text-xs font-mono font-bold text-slate-900 truncate block">
-              {detectedIp}
+              {detectedIp || 'कनेक्शन प्रतीक्षारत'}
             </span>
           </div>
         </div>
@@ -622,7 +622,7 @@ export const RoverCockpit: React.FC = () => {
       <Esp32CodeModal
         isOpen={isCodeModalOpen}
         onClose={() => setIsCodeModalOpen(false)}
-        detectedIp={detectedIp}
+        detectedIp={detectedIp || undefined}
       />
     </div>
   );

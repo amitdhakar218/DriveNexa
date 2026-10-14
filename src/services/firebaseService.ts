@@ -312,7 +312,10 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
       const now = Date.now();
       const hb = (val.heartbeat && typeof val.heartbeat === 'object') ? val.heartbeat : {};
       const telem = (val.telemetry && typeof val.telemetry === 'object') ? val.telemetry : {};
-      const detectedIp = hb.ip || telem.ip || val.ip || '10.181.152.99';
+      const detectedIp = (hb.ip && typeof hb.ip === 'string' && hb.ip.trim()) || 
+                         (telem.ip && typeof telem.ip === 'string' && telem.ip.trim()) || 
+                         (val.ip && typeof val.ip === 'string' && val.ip.trim()) || 
+                         null;
       // Extract actual hardware timestamp from RTDB
       let deviceTimestamp: number | null = null;
       const rawTime = hb.serverTime || hb.timestamp || telem.timestamp || val.timestamp || (typeof hb.lastSeen === 'number' && hb.lastSeen > 1000000000 ? hb.lastSeen : null);
