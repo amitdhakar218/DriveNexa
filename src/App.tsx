@@ -12,6 +12,7 @@ import { EmergencyCenter } from './components/emergency/EmergencyCenter';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { SensorList } from './components/sensors/SensorList';
 import { CameraViewer } from './components/camera/CameraViewer';
+import { RoverCockpit } from './components/dashboard/RoverCockpit';
 import { NotFound } from './components/common/NotFound';
 import { Logo } from './components/brand/Logo';
 import {
@@ -103,17 +104,8 @@ const MainAppContent: React.FC = () => {
 
     switch (activeTab) {
       case 'home':
-        return (
-          <div className="space-y-6">
-            <MetricCards
-              onNavigateTab={handleNavigate}
-              onOpenSensorManager={() => setSubView('SENSORS')}
-              onOpenLiveCamera={() => setSubView('CAMERA')}
-            />
-          </div>
-        );
       case 'remote':
-        return <RemoteControl />;
+        return <RoverCockpit />;
       case 'camera':
         return <CameraViewer />;
       case 'map':

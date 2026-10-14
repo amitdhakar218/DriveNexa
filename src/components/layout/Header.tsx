@@ -5,6 +5,7 @@ import { useDevice } from '../../context/DeviceContext';
 import { useAuth } from '../../context/AuthContext';
 import { TabKey } from './BottomNav';
 import { DeviceRegistrationModal } from '../dashboard/DeviceRegistrationModal';
+import { Esp32CodeModal } from '../camera/Esp32CodeModal';
 import {
   Wifi,
   WifiOff,
@@ -15,6 +16,7 @@ import {
   Activity,
   Plus,
   ChevronDown,
+  Code2,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -37,6 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   } = useDevice();
   const { userProfile } = useAuth();
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+  const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
 
   const formatTimestamp = (timestamp: number | null | undefined, emptyLabel: string = 'No data') => {
     if (!timestamp) return emptyLabel;
@@ -189,8 +192,18 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Right Action Tools: Emergency & Admin */}
+          {/* Right Action Tools: ESP32 Code, Emergency & Admin */}
           <div className="flex items-center gap-2">
+            {/* ESP32 Code Modal Button */}
+            <button
+              onClick={() => setIsCodeModalOpen(true)}
+              className="px-2.5 sm:px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="ESP32 ArduinoDroid Code"
+            >
+              <Code2 className="w-4 h-4 text-blue-600" />
+              <span className="hidden sm:inline">ESP32 कोड</span>
+            </button>
+
             {/* Emergency Center Button */}
             <button
               onClick={() => onTabChange('emergency')}
@@ -247,6 +260,13 @@ export const Header: React.FC<HeaderProps> = ({
       <DeviceRegistrationModal
         isOpen={isDeviceModalOpen}
         onClose={() => setIsDeviceModalOpen(false)}
+      />
+
+      {/* ESP32 ArduinoDroid Code Modal */}
+      <Esp32CodeModal
+        isOpen={isCodeModalOpen}
+        onClose={() => setIsCodeModalOpen(false)}
+        detectedIp={device?.ipAddress || '10.181.152.99'}
       />
     </header>
   );

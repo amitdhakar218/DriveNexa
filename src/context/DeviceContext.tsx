@@ -255,6 +255,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!activeDeviceId || !device) return 'UNKNOWN';
     if (device.lastError) return 'ERROR';
 
+    // If device status is CONNECTED or UNKNOWN with recent update
     const lastSignal = device.lastHeartbeat || device.lastSeen || device.lastDataUpdate;
     if (!lastSignal) {
       return device.status === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED';
@@ -267,7 +268,10 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     if (lastSignalMs > 1000000000000) {
       const diffSec = (currentTime - lastSignalMs) / 1000;
-      if (diffSec >= -5 && diffSec <= 20) return 'CONNECTED';
+      // Allow 45s heartbeat window for ESP32 WiFi latency
+      if (diffSec >= -10 && diffSec <= 45) return 'CONNECTED';
+      // If RTDB status explicitly says CONNECTED
+      if (device.status === 'CONNECTED' && diffSec <= 60) return 'CONNECTED';
       return 'DISCONNECTED';
     }
 

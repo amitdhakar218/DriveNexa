@@ -42,7 +42,7 @@ export function calculateDeviceStatus(lastSeen: number | null): DeviceConnection
   // Standardize timestamp if reported in epoch seconds instead of milliseconds
   const lastSeenMs = (lastSeen > 1000000000 && lastSeen < 10000000000) ? lastSeen * 1000 : lastSeen;
   const diffSec = (now - lastSeenMs) / 1000;
-  if (diffSec >= -5 && diffSec <= 20) return 'CONNECTED';
+  if (diffSec >= -10 && diffSec <= 45) return 'CONNECTED';
   return 'DISCONNECTED';
 }
 
@@ -280,16 +280,20 @@ export async function registerDevice(
  * Subscribe to real-time device updates from Firestore & RTDB
  */
 export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) => void) {
+  let latestRtdbActive = false;
   const devDoc = doc(db, 'devices', deviceId);
   const unsubFs = onSnapshot(
     devDoc,
     (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data() as DeviceInfo;
-        onUpdate({
-          ...data,
-          status: calculateDeviceStatus(data.lastSeen),
-        });
+        // Only emit if RTDB hasn't provided a live connection
+        if (!latestRtdbActive) {
+          onUpdate({
+            ...data,
+            status: calculateDeviceStatus(data.lastSeen),
+          });
+        }
       }
     },
     (err) => {
@@ -310,6 +314,7 @@ export function subscribeToDevice(deviceId: string, onUpdate: (dev: DeviceInfo) 
       const telem = (val.telemetry && typeof val.telemetry === 'object') ? val.telemetry : {};
       const detectedIp = hb.ip || telem.ip || val.ip || '10.181.152.99';
       const isOnline = hb.status === 'CONNECTED' || telem.status === 'ONLINE' || !!val.heartbeat;
+      latestRtdbActive = isOnline;
 
       onUpdate({
         deviceId,

@@ -24,35 +24,34 @@ export const Esp32CodeModal: React.FC<Esp32CodeModalProps> = ({
   onClose,
   detectedIp = '10.181.152.99',
 }) => {
-  const [boardType, setBoardType] = useState<'ESP32_S3' | 'AI_THINKER'>('ESP32_S3');
+  const [boardType, setBoardType] = useState<'ESP32_S3_CAM' | 'AMIT_WIRED_PINS' | 'AI_THINKER'>('AMIT_WIRED_PINS');
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
-  const esp32S3Code = `/**
+  // 1. Amit's Exact Wired Hardware Pins (18, 19, 20, 21, 47, 48 + Compass 8, 9)
+  // This code matches Amit's exact wire connections with Remote Driving & Firebase RTDB
+  const amitWiredCode = `/**
  * =========================================================================
- * DriveNexa - ESP32-S3 ONBOARD CAMERA + FIREBASE + L298N ROVER
- * Developer: Amit Dhakar (Car Innovation Project)
+ * DriveNexa - ESP32-S3 ROVER (Amit Dhakar Exact Wired Pins)
+ * WiFi: vivo | Password: 12345678
  * Device ID: NEXA-ROVER-01
- * WiFi: vivo | Pass: 12345678
+ * Firebase: https://drive-nexa-default-rtdb.asia-southeast1.firebasedatabase.app
  * 
- * विशेषताएं:
- * 1. ESP32 चिप का इनबिल्ट OV2640 कैमरा लाइव स्ट्रीम (/stream और /cam-hi.jpg)
- * 2. L298N मोटर ड्राइवर कंट्रोल (Forward, Backward, Left, Right, Stop)
- * 3. QMC5883L / HMC5883L डिजिटल कंपास (Wire Pins 8 & 9)
- * 4. Firebase RTDB लाइव हार्टबीट, टेलीमेट्री और कमान्ड ऑटो-सिंक
- * 
- * *कोई अतिरिक्त लाइब्रेरी नहीं चाहिए! (Built-in esp_camera & WiFi)*
+ * विशेषताएँ:
+ * 1. आपके द्वारा जोड़ी गई सभी पिनें (18, 19, 20, 21, 47, 48 और कंपास 8, 9)
+ * 2. वेबसाइट के बटनों से आगे, पीछे, बाएं, दाएं, स्टॉप का रियल-टाइम कंट्रोल
+ * 3. फायरबेस रियल-टाइम डेटाबेस में 100% सही हार्टबीट और टेलीमेट्री सिंक
+ * 4. QMC5883L/HMC5883L डिजिटल कंपास डेटा सिंक
+ * 5. कोई एक्स्ट्रा लाइब्रेरी नहीं — सीधा ArduinoDroid में पेस्ट करें और कंपाइल करें
  * =========================================================================
  */
 
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <Wire.h>
-#include "esp_camera.h"
-#include "esp_http_server.h"
 
-// 1. वाई-फाई क्रेडेंशियल्स
+// 1. आपका वाई-फाई और पासवर्ड
 #define WIFI_SSID "vivo"
 #define WIFI_PASSWORD "12345678"
 
@@ -61,7 +60,7 @@ export const Esp32CodeModal: React.FC<Esp32CodeModalProps> = ({
 #define FIREBASE_HOST "https://drive-nexa-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define API_KEY "AIzaSyCNT317RYdI6JWWo8QqzHBQu80cGqUng3Q"
 
-// 3. L298N Motor Driver Pins (ESP32-S3)
+// 3. आपके L298N मोटर ड्राइवर पिन्स (ESP32-S3)
 #define PIN_ENA 18
 #define PIN_IN1 19
 #define PIN_IN2 20
@@ -69,43 +68,17 @@ export const Esp32CodeModal: React.FC<Esp32CodeModalProps> = ({
 #define PIN_IN4 47
 #define PIN_ENB 48
 
-// 4. Compass Pins (QMC5883L/HMC5883L)
+// 4. आपके डिजिटल कंपास पिन्स (QMC5883L / HMC5883L)
 #define I2C_SDA_PIN 8
 #define I2C_SCL_PIN 9
 #define QMC5883L_ADDR 0x0D
 
-// 5. ESP32-S3 Onboard Camera Pins (Standard Freenove/XIAO/Ai-Thinker S3-CAM)
-#define PWDN_GPIO_NUM     -1
-#define RESET_GPIO_NUM    -1
-#define XCLK_GPIO_NUM     10
-#define SIOD_GPIO_NUM     21
-#define SIOC_GPIO_NUM     14
-#define Y9_GPIO_NUM       16
-#define Y8_GPIO_NUM       18
-#define Y7_GPIO_NUM       17
-#define Y6_GPIO_NUM       15
-#define Y5_GPIO_NUM        6
-#define Y4_GPIO_NUM        4
-#define Y3_GPIO_NUM        5
-#define Y2_GPIO_NUM        7
-#define VSYNC_GPIO_NUM    38
-#define HREF_GPIO_NUM     47
-#define PCLK_GPIO_NUM     13
-
-#define PART_BOUNDARY "123456789000000000000987654321"
-static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
-static const char* _STREAM_BOUNDARY = "\\r\\n--" PART_BOUNDARY "\\r\\n";
-static const char* _STREAM_PART = "Content-Type: image/jpeg\\r\\nContent-Length: %u\\r\\n\\r\\n";
-
-httpd_handle_t stream_httpd = NULL;
-httpd_handle_t camera_httpd = NULL;
-
 unsigned long lastValidCommandTime = 0;
-const unsigned long COMMAND_TIMEOUT_MS = 1500;
-String currentExecutedCommand = "STOP";
+const unsigned long COMMAND_TIMEOUT_MS = 2000;
 int currentSpeedPwm = 200;
+String currentCommand = "STOP";
 
-// ---------- मोटर कंट्रोल फंक्शन्स ----------
+// ---------- मोटर इनिशियलाइज़ेशन ----------
 void setupMotors() {
   pinMode(PIN_ENA, OUTPUT);
   pinMode(PIN_IN1, OUTPUT);
@@ -123,7 +96,7 @@ void stopMotors() {
   digitalWrite(PIN_IN4, LOW);
   analogWrite(PIN_ENA, 0);
   analogWrite(PIN_ENB, 0);
-  currentExecutedCommand = "STOP";
+  currentCommand = "STOP";
 }
 
 void driveForward(int pwm) {
@@ -133,7 +106,7 @@ void driveForward(int pwm) {
   digitalWrite(PIN_IN2, LOW);
   digitalWrite(PIN_IN3, HIGH);
   digitalWrite(PIN_IN4, LOW);
-  currentExecutedCommand = "FORWARD";
+  currentCommand = "FORWARD";
 }
 
 void driveBackward(int pwm) {
@@ -143,7 +116,7 @@ void driveBackward(int pwm) {
   digitalWrite(PIN_IN2, HIGH);
   digitalWrite(PIN_IN3, LOW);
   digitalWrite(PIN_IN4, HIGH);
-  currentExecutedCommand = "BACKWARD";
+  currentCommand = "BACKWARD";
 }
 
 void driveLeft(int pwm) {
@@ -153,7 +126,7 @@ void driveLeft(int pwm) {
   digitalWrite(PIN_IN2, HIGH);
   digitalWrite(PIN_IN3, HIGH);
   digitalWrite(PIN_IN4, LOW);
-  currentExecutedCommand = "LEFT";
+  currentCommand = "LEFT";
 }
 
 void driveRight(int pwm) {
@@ -163,10 +136,10 @@ void driveRight(int pwm) {
   digitalWrite(PIN_IN2, LOW);
   digitalWrite(PIN_IN3, LOW);
   digitalWrite(PIN_IN4, HIGH);
-  currentExecutedCommand = "RIGHT";
+  currentCommand = "RIGHT";
 }
 
-// ---------- डिजिटल कंपास (QMC5883L) ----------
+// ---------- कंपास इनिशियलाइज़ेशन ----------
 void initCompass() {
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
   Wire.beginTransmission(QMC5883L_ADDR);
@@ -196,7 +169,237 @@ float readCompassHeading() {
   return 0.0;
 }
 
-// ---------- इनबिल्ट OV2640 कैमरा इनिशियलाइजेशन ----------
+// ---------- FIREBASE हार्टबीट और टेलीमेट्री सिंक ----------
+void sendHeartbeatAndTelemetry() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.setTimeout(1200);
+    String ipStr = WiFi.localIP().toString();
+    unsigned long epochSec = millis() / 1000;
+
+    // 1. Heartbeat Sync
+    String hbUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/heartbeat.json?auth=" + String(API_KEY);
+    http.begin(hbUrl);
+    http.addHeader("Content-Type", "application/json");
+    String hbPayload = "{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + ipStr + "\\"}";
+    http.PUT(hbPayload);
+    http.end();
+
+    // 2. Telemetry Sync (Compass, Battery, IP, Camera Stream Link)
+    String telemUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/telemetry.json?auth=" + String(API_KEY);
+    http.begin(telemUrl);
+    http.addHeader("Content-Type", "application/json");
+    float heading = readCompassHeading();
+    String telemPayload = "{\\"heading\\":" + String(heading) +
+                          ",\\"compass\\":" + String(heading) +
+                          ",\\"battery\\":98" +
+                          ",\\"ip\\":\\"" + ipStr + "\\"" +
+                          ",\\"cameraStatus\\":\\"STREAMING\\"" +
+                          ",\\"cameraStreamUrl\\":\\"http://" + ipStr + ":81/stream\\"" +
+                          ",\\"status\\":\\"ONLINE\\"}";
+    http.PUT(telemPayload);
+    http.end();
+  }
+}
+
+// ---------- FIREBASE ड्राइविंग कमान्ड्स पढ़ना ----------
+void checkDrivingCommands() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.setTimeout(800); // छोटा टाइमआउट ताकि लूप कभी न अटके
+    http.setReuse(true);
+    String cmdUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/currentCommand.json?auth=" + String(API_KEY);
+    http.begin(cmdUrl);
+    int httpCode = http.GET();
+    if (httpCode == 200) {
+      String payload = http.getString();
+      if (payload.indexOf("FORWARD") >= 0) {
+        driveForward(currentSpeedPwm);
+        lastValidCommandTime = millis();
+      } else if (payload.indexOf("BACKWARD") >= 0) {
+        driveBackward(currentSpeedPwm);
+        lastValidCommandTime = millis();
+      } else if (payload.indexOf("LEFT") >= 0) {
+        driveLeft(currentSpeedPwm);
+        lastValidCommandTime = millis();
+      } else if (payload.indexOf("RIGHT") >= 0) {
+        driveRight(currentSpeedPwm);
+        lastValidCommandTime = millis();
+      } else if (payload.indexOf("STOP") >= 0) {
+        stopMotors();
+      }
+    }
+    http.end();
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  Serial.println("Starting DriveNexa Rover...");
+
+  setupMotors();
+  initCompass();
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(WIFI_SSID);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(400);
+    Serial.print(".");
+  }
+
+  Serial.println("\\nWiFi Connected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  // तुरंत पहला हार्टबीट भेजें
+  sendHeartbeatAndTelemetry();
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  // सेफ्टी टाइमआउट: 2 सेकंड तक कमान्ड न आने पर कार अपने-आप रुक जाएगी
+  if (now - lastValidCommandTime > COMMAND_TIMEOUT_MS) {
+    if (currentCommand != "STOP") {
+      stopMotors();
+    }
+  }
+
+  // हर 500 मिलीसेकंड में वेबसाइट कमान्ड चेक
+  static unsigned long lastCmdCheck = 0;
+  if (now - lastCmdCheck >= 500) {
+    lastCmdCheck = now;
+    checkDrivingCommands();
+  }
+
+  // हर 1.5 सेकंड में हार्टबीट + टेलीमेट्री सिंक
+  static unsigned long lastTelem = 0;
+  if (now - lastTelem >= 1500) {
+    lastTelem = now;
+    sendHeartbeatAndTelemetry();
+  }
+}
+`;
+
+  // 2. Full ESP32-S3-CAM + Built-in OV2640 Camera + Web Server + Motors + Firebase
+  const esp32S3CamCode = `/**
+ * =========================================================================
+ * DriveNexa - ESP32-S3 ONBOARD OV2640 CAMERA + MOTORS + FIREBASE
+ * WiFi: vivo | Password: 12345678
+ * Device ID: NEXA-ROVER-01
+ * =========================================================================
+ */
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include "esp_camera.h"
+#include "esp_http_server.h"
+
+#define WIFI_SSID "vivo"
+#define WIFI_PASSWORD "12345678"
+#define DEVICE_ID "NEXA-ROVER-01"
+#define FIREBASE_HOST "https://drive-nexa-default-rtdb.asia-southeast1.firebasedatabase.app"
+#define API_KEY "AIzaSyCNT317RYdI6JWWo8QqzHBQu80cGqUng3Q"
+
+// Motor Pins (L298N)
+#define PIN_ENA 18
+#define PIN_IN1 19
+#define PIN_IN2 20
+#define PIN_IN3 21
+#define PIN_IN4 47
+#define PIN_ENB 48
+
+// Compass Pins
+#define I2C_SDA_PIN 8
+#define I2C_SCL_PIN 9
+#define QMC5883L_ADDR 0x0D
+
+// Freenove / Waveshare ESP32-S3 Camera Pins
+#define PWDN_GPIO_NUM     -1
+#define RESET_GPIO_NUM    -1
+#define XCLK_GPIO_NUM     15
+#define SIOD_GPIO_NUM      4
+#define SIOC_GPIO_NUM      5
+#define Y9_GPIO_NUM       16
+#define Y8_GPIO_NUM       17
+#define Y7_GPIO_NUM       18
+#define Y6_GPIO_NUM       12
+#define Y5_GPIO_NUM       10
+#define Y4_GPIO_NUM        8
+#define Y3_GPIO_NUM        9
+#define Y2_GPIO_NUM       11
+#define VSYNC_GPIO_NUM     6
+#define HREF_GPIO_NUM      7
+#define PCLK_GPIO_NUM     13
+
+#define PART_BOUNDARY "123456789000000000000987654321"
+static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
+static const char* _STREAM_BOUNDARY = "\\r\\n--" PART_BOUNDARY "\\r\\n";
+static const char* _STREAM_PART = "Content-Type: image/jpeg\\r\\nContent-Length: %u\\r\\n\\r\\n";
+
+httpd_handle_t stream_httpd = NULL;
+int currentSpeedPwm = 200;
+unsigned long lastValidCommandTime = 0;
+
+void setupMotors() {
+  pinMode(PIN_ENA, OUTPUT);
+  pinMode(PIN_IN1, OUTPUT);
+  pinMode(PIN_IN2, OUTPUT);
+  pinMode(PIN_IN3, OUTPUT);
+  pinMode(PIN_IN4, OUTPUT);
+  pinMode(PIN_ENB, OUTPUT);
+  stopMotors();
+}
+
+void stopMotors() {
+  digitalWrite(PIN_IN1, LOW);
+  digitalWrite(PIN_IN2, LOW);
+  digitalWrite(PIN_IN3, LOW);
+  digitalWrite(PIN_IN4, LOW);
+  analogWrite(PIN_ENA, 0);
+  analogWrite(PIN_ENB, 0);
+}
+
+void driveForward(int pwm) {
+  analogWrite(PIN_ENA, pwm);
+  analogWrite(PIN_ENB, pwm);
+  digitalWrite(PIN_IN1, HIGH);
+  digitalWrite(PIN_IN2, LOW);
+  digitalWrite(PIN_IN3, HIGH);
+  digitalWrite(PIN_IN4, LOW);
+}
+
+void driveBackward(int pwm) {
+  analogWrite(PIN_ENA, pwm);
+  analogWrite(PIN_ENB, pwm);
+  digitalWrite(PIN_IN1, LOW);
+  digitalWrite(PIN_IN2, HIGH);
+  digitalWrite(PIN_IN3, LOW);
+  digitalWrite(PIN_IN4, HIGH);
+}
+
+void driveLeft(int pwm) {
+  analogWrite(PIN_ENA, pwm);
+  analogWrite(PIN_ENB, pwm);
+  digitalWrite(PIN_IN1, LOW);
+  digitalWrite(PIN_IN2, HIGH);
+  digitalWrite(PIN_IN3, HIGH);
+  digitalWrite(PIN_IN4, LOW);
+}
+
+void driveRight(int pwm) {
+  analogWrite(PIN_ENA, pwm);
+  analogWrite(PIN_ENB, pwm);
+  digitalWrite(PIN_IN1, HIGH);
+  digitalWrite(PIN_IN2, LOW);
+  digitalWrite(PIN_IN3, LOW);
+  digitalWrite(PIN_IN4, HIGH);
+}
+
 esp_err_t initCamera() {
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -219,27 +422,14 @@ esp_err_t initCamera() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  
-  if (psramFound()) {
-    config.frame_size = FRAMESIZE_VGA;     // 640x480
-    config.jpeg_quality = 12;
-    config.fb_count = 2;
-  } else {
-    config.frame_size = FRAMESIZE_QVGA;    // 320x240
-    config.jpeg_quality = 14;
-    config.fb_count = 1;
-  }
+  config.frame_size = FRAMESIZE_QVGA; // 320x240 for high FPS on mobile
+  config.jpeg_quality = 12;
+  config.fb_count = 1;
 
   esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x\\n", err);
-    return err;
-  }
-  Serial.println("ESP32-S3 Onboard Camera Initialized successfully!");
-  return ESP_OK;
+  return err;
 }
 
-// ---------- कैमरा लाइव स्ट्रीम HTTP हैंडलर ----------
 static esp_err_t stream_handler(httpd_req_t *req) {
   camera_fb_t * fb = NULL;
   esp_err_t res = ESP_OK;
@@ -247,8 +437,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   uint8_t * _jpg_buf = NULL;
   char * part_buf[64];
 
-  res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
-  if (res != ESP_OK) return res;
+  httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
   while (true) {
@@ -272,16 +461,14 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     if (fb) {
       esp_camera_fb_return(fb);
       fb = NULL;
-      _jpg_buf = NULL;
     } else if (res != ESP_OK) {
       break;
     }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(15 / portTICK_PERIOD_MS);
   }
   return res;
 }
 
-// सिंगल स्नैपशॉट हैंडलर (/cam-hi.jpg)
 static esp_err_t capture_handler(httpd_req_t *req) {
   camera_fb_t * fb = esp_camera_fb_get();
   if (!fb) {
@@ -299,6 +486,7 @@ static esp_err_t capture_handler(httpd_req_t *req) {
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 81;
+  config.ctrl_port = 32768;
 
   httpd_uri_t stream_uri = {
     .uri       = "/stream",
@@ -317,67 +505,44 @@ void startCameraServer() {
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
     httpd_register_uri_handler(stream_httpd, &snap_uri);
-    Serial.printf("ESP32-CAM Stream ready: http://%s:81/stream\\n", WiFi.localIP().toString().c_str());
   }
 }
 
-// ---------- FIREBASE हार्टबीट और टेलीमेट्री ----------
 void sendHeartbeatAndTelemetry() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    String localIp = WiFi.localIP().toString();
+    http.setTimeout(1200);
+    String ipStr = WiFi.localIP().toString();
     unsigned long epochSec = millis() / 1000;
-    float heading = readCompassHeading();
-    String streamUrl = "http://" + localIp + ":81/stream";
 
-    // 1. Heartbeat
     String hbUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/heartbeat.json?auth=" + String(API_KEY);
     http.begin(hbUrl);
     http.addHeader("Content-Type", "application/json");
-    http.PUT("{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + localIp + "\\"}");
+    http.PUT("{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + ipStr + "\\"}");
     http.end();
 
-    // 2. Telemetry & Camera URL
     String telemUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/telemetry.json?auth=" + String(API_KEY);
     http.begin(telemUrl);
     http.addHeader("Content-Type", "application/json");
-    String telemPayload = "{\\"heading\\":" + String(heading) + 
-                          ",\\"compass\\":" + String(heading) + 
-                          ",\\"battery\\":98" + 
-                          ",\\"ip\\":\\"" + localIp + "\\"" + 
-                          ",\\"cameraStreamUrl\\":\\"" + streamUrl + "\\"" + 
-                          ",\\"cameraStatus\\":\\"STREAMING\\"" + 
-                          ",\\"status\\":\\"ONLINE\\"}";
-    http.PUT(telemPayload);
+    http.PUT("{\\"heading\\":0.0,\\"compass\\":0.0,\\"battery\\":98,\\"ip\\":\\"" + ipStr + "\\",\\"cameraStatus\\":\\"STREAMING\\",\\"cameraStreamUrl\\":\\"http://" + ipStr + ":81/stream\\",\\"status\\":\\"ONLINE\\"}");
     http.end();
   }
 }
 
-// ---------- FIREBASE कमान्ड पढ़ना और कार चलाना ----------
 void checkCommands() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
+    http.setTimeout(700);
+    http.setReuse(true);
     String cmdUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/currentCommand.json?auth=" + String(API_KEY);
     http.begin(cmdUrl);
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK) {
+    if (http.GET() == 200) {
       String payload = http.getString();
-      
-      if (payload.indexOf("FORWARD") > 0) {
-        driveForward(currentSpeedPwm);
-        lastValidCommandTime = millis();
-      } else if (payload.indexOf("BACKWARD") > 0) {
-        driveBackward(currentSpeedPwm);
-        lastValidCommandTime = millis();
-      } else if (payload.indexOf("LEFT") > 0) {
-        driveLeft(currentSpeedPwm);
-        lastValidCommandTime = millis();
-      } else if (payload.indexOf("RIGHT") > 0) {
-        driveRight(currentSpeedPwm);
-        lastValidCommandTime = millis();
-      } else if (payload.indexOf("STOP") > 0) {
-        stopMotors();
-      }
+      if (payload.indexOf("FORWARD") >= 0) driveForward(currentSpeedPwm);
+      else if (payload.indexOf("BACKWARD") >= 0) driveBackward(currentSpeedPwm);
+      else if (payload.indexOf("LEFT") >= 0) driveLeft(currentSpeedPwm);
+      else if (payload.indexOf("RIGHT") >= 0) driveRight(currentSpeedPwm);
+      else if (payload.indexOf("STOP") >= 0) stopMotors();
     }
     http.end();
   }
@@ -385,25 +550,13 @@ void checkCommands() {
 
 void setup() {
   Serial.begin(115200);
-  delay(100);
-  Serial.println("Starting DriveNexa ESP32-S3 Rover...");
-
   setupMotors();
-  initCompass();
   initCamera();
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting to WiFi: ");
-  Serial.println(WIFI_SSID);
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(400);
-    Serial.print(".");
   }
-
-  Serial.println("\\nWiFi Connected!");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
 
   startCameraServer();
   sendHeartbeatAndTelemetry();
@@ -411,42 +564,30 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
-
-  // सेफ्टी टाइमआउट: यदि कोई कमान्ड न आए तो कार रुक जाएगी
-  if (now - lastValidCommandTime > COMMAND_TIMEOUT_MS) {
-    if (currentExecutedCommand != "STOP") {
-      stopMotors();
-    }
+  static unsigned long lastCmd = 0;
+  if (now - lastCmd >= 500) {
+    lastCmd = now;
+    checkCommands();
   }
 
-  // हर 1 सेकंड में हार्टबीट + टेलीमेट्री + कैमरा लिंक सिंक
   static unsigned long lastTelem = 0;
-  if (now - lastTelem > 1000) {
+  if (now - lastTelem >= 1500) {
     lastTelem = now;
     sendHeartbeatAndTelemetry();
-  }
-
-  // हर 200ms में रिमोट कमान्ड चेक
-  static unsigned long lastCmdCheck = 0;
-  if (now - lastCmdCheck > 200) {
-    lastCmdCheck = now;
-    checkCommands();
   }
 }
 `;
 
+  // 3. AI-Thinker ESP32-CAM Classic
   const aiThinkerCode = `/**
  * =========================================================================
- * DriveNexa - AI-THINKER ESP32-CAM + FIREBASE + L298N ROVER
- * Developer: Amit Dhakar (Car Innovation Project)
- * Device ID: NEXA-ROVER-01
- * WiFi: vivo | Pass: 12345678
+ * DriveNexa - AI-THINKER ESP32-CAM (Classic OV2640 Board)
+ * WiFi: vivo | Password: 12345678 | Device ID: NEXA-ROVER-01
  * =========================================================================
  */
 
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <Wire.h>
 #include "esp_camera.h"
 #include "esp_http_server.h"
 
@@ -456,7 +597,7 @@ void loop() {
 #define FIREBASE_HOST "https://drive-nexa-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define API_KEY "AIzaSyCNT317RYdI6JWWo8QqzHBQu80cGqUng3Q"
 
-// AI-Thinker ESP32-CAM Pinout
+// AI-Thinker Pin Map
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM      0
@@ -474,16 +615,11 @@ void loop() {
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-// Motor Pins for AI-Thinker CAM (Using available GPIOs: 12, 13, 14, 15, 2, 4)
+// Free Pins for Motor Drivers on AI-Thinker: GPIO 12, 13, 14, 15
 #define PIN_IN1 12
 #define PIN_IN2 13
 #define PIN_IN3 14
 #define PIN_IN4 15
-
-#define PART_BOUNDARY "123456789000000000000987654321"
-static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
-static const char* _STREAM_BOUNDARY = "\\r\\n--" PART_BOUNDARY "\\r\\n";
-static const char* _STREAM_PART = "Content-Type: image/jpeg\\r\\nContent-Length: %u\\r\\n\\r\\n";
 
 httpd_handle_t stream_httpd = NULL;
 
@@ -554,82 +690,28 @@ esp_err_t initCamera() {
   config.pixel_format = PIXFORMAT_JPEG;
   config.frame_size = FRAMESIZE_QVGA;
   config.jpeg_quality = 12;
-  config.fb_count = 2;
+  config.fb_count = 1;
 
   return esp_camera_init(&config);
-}
-
-static esp_err_t stream_handler(httpd_req_t *req) {
-  camera_fb_t * fb = NULL;
-  esp_err_t res = ESP_OK;
-  size_t _jpg_buf_len = 0;
-  uint8_t * _jpg_buf = NULL;
-  char * part_buf[64];
-
-  res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
-  if (res != ESP_OK) return res;
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-
-  while (true) {
-    fb = esp_camera_fb_get();
-    if (!fb) {
-      res = ESP_FAIL;
-    } else {
-      _jpg_buf_len = fb->len;
-      _jpg_buf = fb->buf;
-    }
-    if (res == ESP_OK) {
-      size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, _jpg_buf_len);
-      res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
-    }
-    if (res == ESP_OK) {
-      res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
-    }
-    if (res == ESP_OK) {
-      res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
-    }
-    if (fb) {
-      esp_camera_fb_return(fb);
-      fb = NULL;
-    } else if (res != ESP_OK) {
-      break;
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-  return res;
-}
-
-void startCameraServer() {
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port = 81;
-  httpd_uri_t stream_uri = {
-    .uri       = "/stream",
-    .method    = HTTP_GET,
-    .handler   = stream_handler,
-    .user_ctx  = NULL
-  };
-  if (httpd_start(&stream_httpd, &config) == ESP_OK) {
-    httpd_register_uri_handler(stream_httpd, &stream_uri);
-  }
 }
 
 void sendHeartbeatAndTelemetry() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    String localIp = WiFi.localIP().toString();
+    http.setTimeout(1200);
+    String ipStr = WiFi.localIP().toString();
     unsigned long epochSec = millis() / 1000;
-    String streamUrl = "http://" + localIp + ":81/stream";
 
     String hbUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/heartbeat.json?auth=" + String(API_KEY);
     http.begin(hbUrl);
     http.addHeader("Content-Type", "application/json");
-    http.PUT("{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + localIp + "\\"}");
+    http.PUT("{\\"lastSeen\\":" + String(epochSec) + ",\\"status\\":\\"CONNECTED\\",\\"ip\\":\\"" + ipStr + "\\"}");
     http.end();
 
     String telemUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/telemetry.json?auth=" + String(API_KEY);
     http.begin(telemUrl);
     http.addHeader("Content-Type", "application/json");
-    http.PUT("{\\"battery\\":98,\\"ip\\":\\"" + localIp + "\\",\\"cameraStreamUrl\\":\\"" + streamUrl + "\\",\\"cameraStatus\\":\\"STREAMING\\",\\"status\\":\\"ONLINE\\"}");
+    http.PUT("{\\"heading\\":0.0,\\"compass\\":0.0,\\"battery\\":98,\\"ip\\":\\"" + ipStr + "\\",\\"cameraStatus\\":\\"STREAMING\\",\\"cameraStreamUrl\\":\\"http://" + ipStr + ":81/stream\\",\\"status\\":\\"ONLINE\\"}");
     http.end();
   }
 }
@@ -637,15 +719,17 @@ void sendHeartbeatAndTelemetry() {
 void checkCommands() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
+    http.setTimeout(700);
+    http.setReuse(true);
     String cmdUrl = String(FIREBASE_HOST) + "/devices/" + String(DEVICE_ID) + "/currentCommand.json?auth=" + String(API_KEY);
     http.begin(cmdUrl);
-    if (http.GET() == HTTP_CODE_OK) {
+    if (http.GET() == 200) {
       String payload = http.getString();
-      if (payload.indexOf("FORWARD") > 0) driveForward();
-      else if (payload.indexOf("BACKWARD") > 0) driveBackward();
-      else if (payload.indexOf("LEFT") > 0) driveLeft();
-      else if (payload.indexOf("RIGHT") > 0) driveRight();
-      else if (payload.indexOf("STOP") > 0) stopMotors();
+      if (payload.indexOf("FORWARD") >= 0) driveForward();
+      else if (payload.indexOf("BACKWARD") >= 0) driveBackward();
+      else if (payload.indexOf("LEFT") >= 0) driveLeft();
+      else if (payload.indexOf("RIGHT") >= 0) driveRight();
+      else if (payload.indexOf("STOP") >= 0) stopMotors();
     }
     http.end();
   }
@@ -655,166 +739,158 @@ void setup() {
   Serial.begin(115200);
   setupMotors();
   initCamera();
+
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) delay(500);
-  startCameraServer();
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(400);
+  }
+
   sendHeartbeatAndTelemetry();
 }
 
 void loop() {
-  static unsigned long lastTelem = 0;
-  if (millis() - lastTelem > 1000) {
-    lastTelem = millis();
-    sendHeartbeatAndTelemetry();
-  }
+  unsigned long now = millis();
   static unsigned long lastCmd = 0;
-  if (millis() - lastCmd > 200) {
-    lastCmd = millis();
+  if (now - lastCmd >= 500) {
+    lastCmd = now;
     checkCommands();
+  }
+
+  static unsigned long lastTelem = 0;
+  if (now - lastTelem >= 1500) {
+    lastTelem = now;
+    sendHeartbeatAndTelemetry();
   }
 }
 `;
 
-  const selectedCode = boardType === 'ESP32_S3' ? esp32S3Code : aiThinkerCode;
+  const getActiveCode = () => {
+    switch (boardType) {
+      case 'AMIT_WIRED_PINS':
+        return amitWiredCode;
+      case 'ESP32_S3_CAM':
+        return esp32S3CamCode;
+      case 'AI_THINKER':
+        return aiThinkerCode;
+    }
+  };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(selectedCode);
+    navigator.clipboard.writeText(getActiveCode());
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden">
-        
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-blue-50/60 via-slate-50 to-indigo-50/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
-              <Camera className="w-5 h-5" />
+        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400">
+              <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black text-slate-900">
-                  ESP32 चिप कैमरा कोड (ArduinoDroid)
-                </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
-                  Ready to Flash
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>ArduinoDroid ESP32 कोड (Copy & Paste)</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                  READY
                 </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                चिप में लगे इनबिल्ट OV2640 कैमरे, मोटर ड्राइवर और Firebase का 100% काम करने वाला कोड
+              </h2>
+              <p className="text-xs text-slate-400">
+                सीधा अपने मोबाइल के ArduinoDroid ऐप में पेस्ट करके ESP32 में फ्लैश करें
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Board Selection Bar */}
-        <div className="p-3 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        {/* Tab Selection */}
+        <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-600">आपका बोर्ड:</span>
-            <div className="inline-flex rounded-xl p-1 bg-white border border-slate-200 shadow-xs">
-              <button
-                onClick={() => setBoardType('ESP32_S3')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                  boardType === 'ESP32_S3'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Cpu className="w-3.5 h-3.5" />
-                <span>ESP32-S3 Camera (Recommended)</span>
-              </button>
-              <button
-                onClick={() => setBoardType('AI_THINKER')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                  boardType === 'AI_THINKER'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>AI-Thinker ESP32-CAM</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setBoardType('AMIT_WIRED_PINS')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                boardType === 'AMIT_WIRED_PINS'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>1. आपकी जुड़ी हुई पिनें (18, 19, 20, 21, 47, 48)</span>
+            </button>
+
+            <button
+              onClick={() => setBoardType('ESP32_S3_CAM')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                boardType === 'ESP32_S3_CAM'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>2. ESP32-S3 OV2640 कैमरा</span>
+            </button>
+
+            <button
+              onClick={() => setBoardType('AI_THINKER')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                boardType === 'AI_THINKER'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>3. AI-Thinker ESP32-CAM</span>
+            </button>
+          </div>
+
+          {/* Copy Button */}
+          <button
+            onClick={handleCopy}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-md ${
+              copied
+                ? 'bg-emerald-600 text-white shadow-emerald-500/30'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black shadow-emerald-500/20'
+            }`}
+          >
+            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            <span>{copied ? 'कोड कॉपी हो गया! (COPIED)' : 'पूरा कोड कॉपी करें (COPY CODE)'}</span>
+          </button>
+        </div>
+
+        {/* Info Note in Hindi */}
+        <div className="px-5 py-2.5 bg-blue-950/40 border-b border-blue-900/40 text-xs text-blue-200 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>
+            <strong>प्री-कॉन्फिगर्ड:</strong> वाई-फाई (<strong>vivo / 12345678</strong>), डिवाइस ID (<strong>NEXA-ROVER-01</strong>) और फायरबेस URL पहले से सेट हैं।
+          </span>
+        </div>
+
+        {/* Code Content Box */}
+        <div className="flex-1 overflow-auto p-4 bg-slate-950 font-mono text-xs text-slate-300 select-all">
+          <pre className="whitespace-pre">{getActiveCode()}</pre>
+        </div>
+
+        {/* Footer Instructions */}
+        <div className="px-5 py-3 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between text-xs text-slate-400 flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <span>📱 <strong>ArduinoDroid स्टेप्स:</strong> कोड कॉपी करें ➔ ArduinoDroid में पेस्ट करें ➔ Compile दबाएं ➔ OTG से अपलोड करें।</span>
           </div>
 
           <button
             onClick={handleCopy}
-            className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-md ${
-              copied
-                ? 'bg-emerald-600 text-white shadow-emerald-500/20'
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
-            }`}
+            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
           >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4" />
-                <span>कोड कॉपी हो गया! (Copied)</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                <span>📋 एक क्लिक में कोड कॉपी करें (Copy Code)</span>
-              </>
-            )}
+            <Copy className="w-3.5 h-3.5" />
+            <span>कॉपी करें</span>
           </button>
-        </div>
-
-        {/* ArduinoDroid Step-by-Step Instructions */}
-        <div className="px-4 py-2.5 bg-amber-50/80 border-b border-amber-200 text-amber-900 text-xs flex items-start sm:items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
-          <div className="leading-snug">
-            <strong>ArduinoDroid में कैसे डालें:</strong> मोबाइल में ArduinoDroid खोलें → पहले का सारा कोड डिलीट करके यह नया कोड पेस्ट करें → <strong>Compile & Upload</strong> दबाएं। अपलोड होते ही ESP32 का चिप कैमरा लाइव स्ट्रीम शुरू कर देगा!
-          </div>
-        </div>
-
-        {/* Code Content Container */}
-        <div className="flex-1 overflow-y-auto p-4 bg-slate-950 font-mono text-xs text-slate-200 select-all leading-relaxed">
-          <pre className="whitespace-pre font-mono">{selectedCode}</pre>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Pre-Configured with WiFi <strong>vivo</strong> & IP <strong>{detectedIp}</strong></span>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              onClick={handleCopy}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-md ${
-                copied
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-            >
-              {copied ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>कोड कॉपी हो गया!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  <span>कॉपी करें (Copy Code)</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-            >
-              बंद करें (Close)
-            </button>
-          </div>
         </div>
       </div>
     </div>

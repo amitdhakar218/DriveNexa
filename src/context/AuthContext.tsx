@@ -87,7 +87,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
       } else {
-        setUserProfile(null);
+        // Auto-authenticate operator anonymously so the rover is immediately accessible
+        signInAnonymously(auth).catch((err) => {
+          console.warn('Anonymous sign-in note:', err);
+        });
       }
       setLoading(false);
     });

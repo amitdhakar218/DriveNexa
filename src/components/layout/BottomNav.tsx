@@ -16,34 +16,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const tabs = [
     {
       key: 'home' as TabKey,
-      label: 'HOME',
+      label: 'मुख्य कॉकपिट',
       icon: Home,
     },
     {
-      key: 'remote' as TabKey,
-      label: 'REMOTE',
-      icon: Gamepad2,
-    },
-    {
       key: 'camera' as TabKey,
-      label: 'CAMERA',
+      label: 'लाइव कैमरा',
       icon: Camera,
     },
     {
-      key: 'map' as TabKey,
-      label: 'MAP',
-      icon: MapPin,
-    },
-    {
-      key: 'profile' as TabKey,
-      label: 'PROFILE',
-      icon: UserCheck,
+      key: 'remote' as TabKey,
+      label: 'ड्राइविंग कंट्रोल',
+      icon: Gamepad2,
     },
   ];
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 shadow-lg backdrop-blur-md pb-safe">
-      <div className="max-w-md mx-auto grid grid-cols-5 h-16 px-1">
+      <div className="max-w-md mx-auto grid grid-cols-3 h-16 px-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
