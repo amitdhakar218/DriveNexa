@@ -118,7 +118,7 @@ const MainAppContent: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1.5 font-medium">
                   <span>हार्डवेयर: <strong className="text-slate-700 font-mono">{device?.hardwareModel || 'ESP32-S3 Robotic Rover'}</strong></span>
                   <span>•</span>
-                  <span>IP एड्रेस: <strong className="text-blue-700 font-mono">{device?.ipAddress ? device.ipAddress : 'कनेक्शन प्रतीक्षारत (Offline)'}</strong></span>
+                  <span>IP एड्रेस: <strong className="text-blue-700 font-mono">{connectionState === 'CONNECTED' && device?.ipAddress ? device.ipAddress : '— (ऑफलाइन)'}</strong></span>
                 </div>
               </div>
 
